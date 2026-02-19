@@ -6,6 +6,15 @@ import { supabase } from '../lib/supabase';
 import { withRateLimit, getRemainingSwipes } from '../lib/rateLimit';
 import { Profile, Match, Message } from '../types/database';
 
+// UUID形式のバリデーション（SQLインジェクション防止）
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function validateUUID(id: string, fieldName: string = 'ID'): void {
+    if (!UUID_REGEX.test(id)) {
+        throw new Error(`無効な${fieldName}形式です`);
+    }
+}
+
 // ============================================================
 // プロフィール
 // ============================================================
@@ -34,13 +43,15 @@ export const profileService = {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('認証が必要です');
 
+        const updates: any = {
+            id: user.id,
+            ...profile,
+            updated_at: new Date().toISOString(),
+        };
+
         const { data, error } = await supabase
             .from('profiles')
-            .upsert({
-                id: user.id,
-                ...profile,
-                updated_at: new Date().toISOString(),
-            })
+            .upsert(updates)
             .select()
             .single();
 
@@ -52,6 +63,10 @@ export const profileService = {
      * 他のユーザーのプロフィールを取得（レート制限付き）
      */
     async getProfile(userId: string, myUserId: string): Promise<Profile | null> {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(userId, 'ユーザーID');
+        validateUUID(myUserId, 'ユーザーID');
+
         return withRateLimit('profile:view', myUserId, async () => {
             const { data, error } = await supabase
                 .from('profiles')
@@ -115,15 +130,22 @@ export const discoveryService = {
         }
     ): Promise<Profile[]> {
         return withRateLimit('search', myUserId, async () => {
+            // SQLインジェクション防止: myUserIdのUUID形式を検証
+            validateUUID(myUserId, 'ユーザーID');
+
             // 既にスワイプしたユーザーIDを取得
             const { data: swipedData } = await supabase
                 .from('swipes')
                 .select('swiped_id')
-                .eq('swiper_id', myUserId);
+                .eq('swiper_id', myUserId)
+                .returns<{ swiped_id: string }[]>();
 
-            const swipedIds = swipedData?.map((s) => s.swiped_id) || [];
+            const swipedIds = (swipedData?.map((s) => s.swiped_id) || [])
+                .filter((id): id is string => typeof id === 'string' && UUID_REGEX.test(id));
             const excludeIds = [myUserId, ...swipedIds];
 
+            // 安全なフィルタリング: 各IDがUUID形式であることを確認済み
+            // excludeIdsは全て検証済みUUIDのみ
             let query = supabase
                 .from('profiles')
                 .select('*')
@@ -155,8 +177,8 @@ export const discoveryService = {
                             )
                             : 9999,
                     }))
-                    .filter((p) => !options.radiusKm || p.distance <= options.radiusKm)
-                    .sort((a, b) => a.distance - b.distance) as any;
+                    .filter((p: any) => !options.radiusKm || p.distance <= options.radiusKm)
+                    .sort((a: any, b: any) => a.distance - b.distance) as any;
             }
 
             return data || [];
@@ -172,17 +194,23 @@ export const discoveryService = {
         direction: 'like' | 'nope' | 'superlike',
         isPremium: boolean
     ): Promise<{ matched: boolean; matchId?: string }> {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(swiperId, 'スワイパーID');
+        validateUUID(swipedId, 'スワイプ先ID');
+
         const action = isPremium ? 'swipe:premium' : 'swipe:free';
 
         return withRateLimit(action, swiperId, async () => {
             // スワイプを記録
+            const swipeData: any = {
+                swiper_id: swiperId,
+                swiped_id: swipedId,
+                direction,
+            };
+
             const { error: swipeError } = await supabase
                 .from('swipes')
-                .insert({
-                    swiper_id: swiperId,
-                    swiped_id: swipedId,
-                    direction,
-                });
+                .insert(swipeData);
 
             if (swipeError) throw swipeError;
 
@@ -198,12 +226,14 @@ export const discoveryService = {
 
                 if (reverseSwipe) {
                     // マッチ成立！
+                    const matchData: any = {
+                        user1_id: swiperId,
+                        user2_id: swipedId,
+                    };
+
                     const { data: match, error: matchError } = await supabase
                         .from('matches')
-                        .insert({
-                            user1_id: swiperId,
-                            user2_id: swipedId,
-                        })
+                        .insert(matchData)
                         .select()
                         .single();
 
@@ -232,6 +262,9 @@ export const matchService = {
      * マッチ一覧を取得
      */
     async getMatches(userId: string): Promise<(Match & { otherProfile: Profile })[]> {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(userId, 'ユーザーID');
+
         const { data, error } = await supabase
             .from('matches')
             .select(`
@@ -259,6 +292,8 @@ export const messageService = {
      * メッセージ一覧を取得
      */
     async getMessages(matchId: string): Promise<Message[]> {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(matchId, 'マッチID');
         const { data, error } = await supabase
             .from('messages')
             .select('*')
@@ -273,14 +308,19 @@ export const messageService = {
      * メッセージを送信（レート制限付き）
      */
     async sendMessage(matchId: string, senderId: string, content: string): Promise<Message> {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(matchId, 'マッチID');
+        validateUUID(senderId, '送信者ID');
         return withRateLimit('message:send', senderId, async () => {
+            const messageData: any = {
+                match_id: matchId,
+                sender_id: senderId,
+                content: content.trim(),
+            };
+
             const { data, error } = await supabase
                 .from('messages')
-                .insert({
-                    match_id: matchId,
-                    sender_id: senderId,
-                    content: content.trim(),
-                })
+                .insert(messageData)
                 .select()
                 .single();
 
@@ -293,9 +333,12 @@ export const messageService = {
      * メッセージを既読にする
      */
     async markAsRead(matchId: string, userId: string): Promise<void> {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(matchId, 'マッチID');
+        validateUUID(userId, 'ユーザーID');
         const { error } = await supabase
             .from('messages')
-            .update({ read_at: new Date().toISOString() })
+            .update({ read_at: new Date().toISOString() } as any)
             .eq('match_id', matchId)
             .neq('sender_id', userId)
             .is('read_at', null);
@@ -307,15 +350,18 @@ export const messageService = {
      * リアルタイムメッセージ購読
      */
     subscribeToMessages(matchId: string, onMessage: (message: Message) => void) {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(matchId, 'マッチID');
+
         return supabase
-            .channel(`messages:${matchId}`)
+            .channel(`messages:${matchId}`)  // チャンネル名（SQL対象外）
             .on(
                 'postgres_changes',
                 {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'messages',
-                    filter: `match_id=eq.${matchId}`,
+                    filter: `match_id=eq.${matchId}`, // UUID検証済みのため安全
                 },
                 (payload) => {
                     onMessage(payload.new as Message);
@@ -345,15 +391,20 @@ export const reportService = {
         reason: string,
         description?: string
     ): Promise<void> {
+        // SQLインジェクション防止: UUID形式を検証
+        validateUUID(reporterId, '通報者ID');
+        validateUUID(reportedId, '通報対象ID');
         return withRateLimit('report', reporterId, async () => {
+            const reportData: any = {
+                reporter_id: reporterId,
+                reported_id: reportedId,
+                reason,
+                description: description || null,
+            };
+
             const { error } = await supabase
                 .from('reports')
-                .insert({
-                    reporter_id: reporterId,
-                    reported_id: reportedId,
-                    reason,
-                    description: description || null,
-                });
+                .insert(reportData);
 
             if (error) throw error;
         });

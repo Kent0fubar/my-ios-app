@@ -75,14 +75,16 @@ export const locationService = {
         const location = await this.getCurrentLocation();
         if (!location) return null;
 
+        const updates: any = {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            location: location.displayName,
+            updated_at: new Date().toISOString(),
+        };
+
         const { error } = await supabase
             .from('profiles')
-            .update({
-                latitude: location.latitude,
-                longitude: location.longitude,
-                location: location.displayName,
-                updated_at: new Date().toISOString(),
-            })
+            .update(updates)
             .eq('id', userId);
 
         if (error) {

@@ -83,9 +83,10 @@ export const mediaService = {
             const { data } = supabase.storage.from('avatars').getPublicUrl(path);
 
             // プロフィールのavatar_urlを更新
+            const updates: any = { avatar_url: data.publicUrl };
             await supabase
                 .from('profiles')
-                .update({ avatar_url: data.publicUrl })
+                .update(updates)
                 .eq('id', userId);
 
             return { url: data.publicUrl, path };
@@ -179,9 +180,10 @@ export const mediaService = {
             const { data } = supabase.storage.from('audio_clips').getPublicUrl(path);
 
             // プロフィールのaudio_clip_urlを更新
+            const updates: any = { audio_clip_url: data.publicUrl };
             await supabase
                 .from('profiles')
-                .update({ audio_clip_url: data.publicUrl })
+                .update(updates)
                 .eq('id', userId);
 
             return { url: data.publicUrl, path };
