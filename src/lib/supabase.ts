@@ -5,8 +5,8 @@ import { Database } from '../types/database';
 // Supabase の設定
 // ⚠️ 本番環境では環境変数から読み込んでください
 // Supabase ダッシュボードの Project Settings > API から取得
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zgwsacshtooqthlsnplw.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpnd3NhY3NodG9vcXRobHNucGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1MDcxNzUsImV4cCI6MjA4NzA4MzE3NX0.H9x5ISv-pP-zyBqS9WDLLfr0OwhgIdEaGirTNHP6GV0';
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
