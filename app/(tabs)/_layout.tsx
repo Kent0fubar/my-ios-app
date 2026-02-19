@@ -1,10 +1,32 @@
-import { Tabs } from 'expo-router';
+/**
+ * タブレイアウト（認証ガード付き）
+ * 未認証ユーザーはログイン画面にリダイレクトされる
+ */
+import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../src/theme';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function TabLayout() {
+    const { isAuthenticated, isLoading } = useAuth();
+
+    // ローディング中
+    if (isLoading) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+        );
+    }
+
+    // 🛡️ 認証ガード: 未認証ユーザーはログイン画面へリダイレクト
+    // URLを直接入力してもアクセス不可
+    if (!isAuthenticated) {
+        return <Redirect href="/auth/login" />;
+    }
+
     return (
         <Tabs
             screenOptions={{
@@ -115,6 +137,12 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#0A0A1A',
+    },
     tabBar: {
         backgroundColor: 'rgba(10, 10, 26, 0.95)',
         borderTopWidth: 1,

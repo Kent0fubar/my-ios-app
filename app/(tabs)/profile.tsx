@@ -6,39 +6,63 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
 import { INSTRUMENTS, GENRES, SKILL_LEVELS } from '../../src/data/mockData';
-
-// デモ用マイプロフィール
-const MY_PROFILE = {
-    name: 'Kent',
-    age: 24,
-    location: '東京都渋谷区',
-    bio: 'ギタリスト🎸 ロック・インディーが好きです。一緒にバンドを組みたい！',
-    instruments: ['guitar', 'vocal'],
-    genres: ['rock', 'indie', 'pop'],
-    skillLevel: 'intermediate' as const,
-    imageUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
-    isPremium: false,
-    stats: {
-        likes: 42,
-        matches: 12,
-        profileViews: 156,
-    },
-};
+import { useAuth } from '../../src/contexts/AuthContext';
+import { authService } from '../../src/services/authService';
 
 export default function ProfileScreen() {
-    const userInstruments = MY_PROFILE.instruments
+    const { user, profile, isAuthenticated } = useAuth();
+
+    // 🛡️ 認証チェック（二重防御：タブレイアウトでもチェック済み）
+    if (!isAuthenticated || !user) {
+        router.replace('/auth/login');
+        return null;
+    }
+
+    // プロフィールデータ（Supabaseから取得、なければデフォルト値）
+    const displayProfile = {
+        name: profile?.name || user.user_metadata?.name || 'ユーザー',
+        age: profile?.age || null,
+        location: profile?.location || '未設定',
+        bio: profile?.bio || '自己紹介を追加しましょう',
+        instruments: profile?.instruments || [],
+        genres: profile?.genres || [],
+        skillLevel: (profile?.skill_level || 'beginner') as 'beginner' | 'intermediate' | 'advanced' | 'professional',
+        imageUrl: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
+        isPremium: profile?.is_premium || false,
+    };
+
+    const handleLogout = () => {
+        Alert.alert(
+            'ログアウト',
+            'ログアウトしますか？',
+            [
+                { text: 'キャンセル', style: 'cancel' },
+                {
+                    text: 'ログアウト',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await authService.signOut();
+                        router.replace('/auth/login');
+                    },
+                },
+            ]
+        );
+    };
+
+    const userInstruments = displayProfile.instruments
         .map((id) => INSTRUMENTS.find((i) => i.id === id))
         .filter(Boolean);
-    const userGenres = MY_PROFILE.genres
+    const userGenres = displayProfile.genres
         .map((id) => GENRES.find((g) => g.id === id))
         .filter(Boolean);
-    const skillLevel = SKILL_LEVELS.find((s) => s.id === MY_PROFILE.skillLevel);
+    const skillLevel = SKILL_LEVELS.find((s) => s.id === displayProfile.skillLevel);
 
     return (
         <View style={styles.container}>
@@ -77,7 +101,7 @@ export default function ProfileScreen() {
                                     end={{ x: 1, y: 1 }}
                                 >
                                     <Image
-                                        source={{ uri: MY_PROFILE.imageUrl }}
+                                        source={{ uri: displayProfile.imageUrl }}
                                         style={styles.avatar}
                                     />
                                 </LinearGradient>
@@ -88,12 +112,12 @@ export default function ProfileScreen() {
 
                             <View style={styles.nameSection}>
                                 <View style={styles.nameRow}>
-                                    <Text style={styles.name}>{MY_PROFILE.name}</Text>
-                                    <Text style={styles.age}>{MY_PROFILE.age}</Text>
+                                    <Text style={styles.name}>{displayProfile.name}</Text>
+                                    {displayProfile.age && <Text style={styles.age}>{displayProfile.age}</Text>}
                                 </View>
                                 <View style={styles.locationRow}>
                                     <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
-                                    <Text style={styles.location}>{MY_PROFILE.location}</Text>
+                                    <Text style={styles.location}>{displayProfile.location}</Text>
                                 </View>
                             </View>
                         </View>
@@ -101,12 +125,12 @@ export default function ProfileScreen() {
                         {/* Stats */}
                         <View style={styles.statsRow}>
                             <View style={styles.statItem}>
-                                <Text style={styles.statNumber}>{MY_PROFILE.stats.likes}</Text>
+                                <Text style={styles.statNumber}>-</Text>
                                 <Text style={styles.statLabel}>いいね</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
-                                <Text style={styles.statNumber}>{MY_PROFILE.stats.matches}</Text>
+                                <Text style={styles.statNumber}>-</Text>
                                 <Text style={styles.statLabel}>マッチ</Text>
                             </View>
                             <View style={styles.statDivider} />
@@ -122,7 +146,7 @@ export default function ProfileScreen() {
                 </View>
 
                 {/* Premium CTA */}
-                {!MY_PROFILE.isPremium && (
+                {!displayProfile.isPremium && (
                     <TouchableOpacity
                         style={styles.premiumCTA}
                         activeOpacity={0.8}
@@ -154,7 +178,7 @@ export default function ProfileScreen() {
                             <Ionicons name="pencil" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
-                    <Text style={styles.bioText}>{MY_PROFILE.bio}</Text>
+                    <Text style={styles.bioText}>{displayProfile.bio}</Text>
                 </View>
 
                 {/* Instruments */}
@@ -228,7 +252,7 @@ export default function ProfileScreen() {
                         <Text style={styles.actionText}>ヘルプ＆サポート</Text>
                         <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionItem}>
+                    <TouchableOpacity style={styles.actionItem} onPress={handleLogout}>
                         <Ionicons name="log-out-outline" size={20} color={Colors.error} />
                         <Text style={[styles.actionText, { color: Colors.error }]}>ログアウト</Text>
                         <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />

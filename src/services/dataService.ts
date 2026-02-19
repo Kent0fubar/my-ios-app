@@ -66,8 +66,15 @@ export const profileService = {
 
     /**
      * アバター画像をアップロード
+     * 🛡️ セキュリティ: 認証ユーザーのIDと一致するか検証
      */
     async uploadAvatar(userId: string, fileUri: string, fileExt: string): Promise<string> {
+        // 認証ユーザーIDの検証 — 他人のアバターを上書きできない
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || user.id !== userId) {
+            throw new Error('権限がありません：自分のアバターのみアップロードできます');
+        }
+
         return withRateLimit('upload:file', userId, async () => {
             const fileName = `${userId}/avatar.${fileExt}`;
             const response = await fetch(fileUri);
