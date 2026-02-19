@@ -1,36 +1,42 @@
 {
   "expo": {
-    "name": "my-ios-app",
-    "slug": "my-ios-app",
+    "name": "BandLink",
+    "slug": "bandlink",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "scheme": "bandlink",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0A1A"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.myiosapp",
+      "bundleIdentifier": "com.bandlink.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "カメラを使用します",
-        "NSPhotoLibraryUsageDescription": "フォトライブラリにアクセスします"
+        "NSCameraUsageDescription": "プロフィール写真の撮影に使用します",
+        "NSPhotoLibraryUsageDescription": "プロフィール写真の選択に使用します",
+        "NSMicrophoneUsageDescription": "音声メッセージの録音に使用します"
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0A0A1A"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "package": "com.bandlink.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
   }
 }
