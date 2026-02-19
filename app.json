@@ -20,7 +20,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "プロフィール写真の撮影に使用します",
         "NSPhotoLibraryUsageDescription": "プロフィール写真の選択に使用します",
-        "NSMicrophoneUsageDescription": "音声メッセージの録音に使用します"
+        "NSMicrophoneUsageDescription": "演奏サンプルの録音に使用します",
+        "NSLocationWhenInUseUsageDescription": "近くのミュージシャンを探すために使用します"
       }
     },
     "android": {
@@ -28,7 +29,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A1A"
       },
-      "package": "com.bandlink.app"
+      "package": "com.bandlink.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -36,7 +43,33 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "近くのミュージシャンを探すために位置情報を使用します"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "プロフィール写真を選択するためにフォトライブラリにアクセスします",
+          "cameraPermission": "プロフィール写真を撮影するためにカメラを使用します"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#8B5CF6"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "演奏サンプルを録音するためにマイクを使用します"
+        }
+      ]
     ]
   }
 }
