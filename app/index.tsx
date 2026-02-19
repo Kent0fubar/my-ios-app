@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -6,11 +6,13 @@ import {
     Dimensions,
     TouchableOpacity,
     Animated,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../src/theme';
+import { useAuth } from '../src/contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -39,9 +41,17 @@ const ONBOARDING_DATA = [
 ];
 
 export default function OnboardingScreen() {
+    const { isAuthenticated, isLoading } = useAuth();
     const [currentPage, setCurrentPage] = useState(0);
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
+
+    // ログイン済みの場合はタブ画面に直行
+    useEffect(() => {
+        if (!isLoading && isAuthenticated) {
+            router.replace('/(tabs)/discover');
+        }
+    }, [isAuthenticated, isLoading]);
 
     const animateTransition = (nextPage: number) => {
         Animated.parallel([
@@ -77,13 +87,27 @@ export default function OnboardingScreen() {
         if (currentPage < ONBOARDING_DATA.length - 1) {
             animateTransition(currentPage + 1);
         } else {
-            router.replace('/(tabs)/discover');
+            // 未ログインの場合は認証画面へ
+            router.push('/auth/login');
         }
     };
 
     const handleSkip = () => {
-        router.replace('/(tabs)/discover');
+        router.push('/auth/login');
     };
+
+    // ローディング中
+    if (isLoading) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <LinearGradient
+                    colors={['#0A0A1A', '#13132B', '#1C1C3A']}
+                    style={StyleSheet.absoluteFill}
+                />
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+        );
+    }
 
     const data = ONBOARDING_DATA[currentPage];
 
