@@ -1,0 +1,52 @@
+name: EAS Build & Submit iOS
+
+on:
+  push:
+    branches:
+      - main          # mainブランチへのpushで自動実行
+  workflow_dispatch:  # 手動実行も可能
+
+jobs:
+  build-ios:
+    name: Build & Submit iOS (EAS)
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. リポジトリのチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Node.js のセットアップ（LTS版）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      # 3. 依存パッケージのインストール
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. EAS CLI のインストール
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      # 5. Expo アカウントでログイン（EXPO_TOKEN を GitHub Secrets に設定）
+      - name: Login to Expo
+        run: eas whoami
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      # 6. iOS ビルド（production）
+      #    初回実行時は証明書・プロビジョニングプロファイルの自動生成を行います
+      - name: EAS Build for iOS
+        run: eas build --platform ios --profile production --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      # 7. App Store Connect へ自動Submit（TestFlight）
+      - name: EAS Submit to TestFlight
+        run: eas submit --platform ios --latest --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          # ASC_APP_ID は eas.json の submit.production に設定してください
