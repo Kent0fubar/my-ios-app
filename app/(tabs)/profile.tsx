@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     Image,
     Alert,
+    TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,6 +58,60 @@ export default function ProfileScreen() {
         );
     };
 
+    // タグ管理のstate
+    const [selectedTags, setSelectedTags] = useState<string[]>(displayProfile.tags);
+    const [customTagInput, setCustomTagInput] = useState('');
+    const [isEditingTags, setIsEditingTags] = useState(false);
+    const MAX_TAGS = 10;
+    const MAX_TAG_LENGTH = 15;
+
+    const togglePresetTag = (tagId: string) => {
+        setSelectedTags(prev => {
+            if (prev.includes(tagId)) {
+                return prev.filter(t => t !== tagId);
+            }
+            if (prev.length >= MAX_TAGS) {
+                Alert.alert('上限', `タグは最大${MAX_TAGS}個までです`);
+                return prev;
+            }
+            return [...prev, tagId];
+        });
+    };
+
+    const addCustomTag = () => {
+        const trimmed = customTagInput.trim();
+        if (!trimmed) return;
+        if (trimmed.length > MAX_TAG_LENGTH) {
+            Alert.alert('エラー', `タグは${MAX_TAG_LENGTH}文字以内にしてください`);
+            return;
+        }
+        const customId = `custom:${trimmed}`;
+        if (selectedTags.includes(customId)) {
+            Alert.alert('エラー', 'このタグは既に追加されています');
+            return;
+        }
+        if (selectedTags.length >= MAX_TAGS) {
+            Alert.alert('上限', `タグは最大${MAX_TAGS}個までです`);
+            return;
+        }
+        setSelectedTags(prev => [...prev, customId]);
+        setCustomTagInput('');
+    };
+
+    const removeTag = (tagId: string) => {
+        setSelectedTags(prev => prev.filter(t => t !== tagId));
+    };
+
+    // タグの表示情報を取得
+    const getTagDisplay = (tagId: string) => {
+        const preset = TAGS.find(t => t.id === tagId);
+        if (preset) return { label: preset.label, icon: preset.icon, color: preset.color, isCustom: false };
+        if (tagId.startsWith('custom:')) {
+            return { label: tagId.replace('custom:', ''), icon: '🏷️', color: '#8B5CF6', isCustom: true };
+        }
+        return { label: tagId, icon: '🏷️', color: '#8B5CF6', isCustom: true };
+    };
+
     const userInstruments = displayProfile.instruments
         .map((id) => INSTRUMENTS.find((i) => i.id === id))
         .filter(Boolean);
@@ -64,9 +119,6 @@ export default function ProfileScreen() {
         .map((id) => GENRES.find((g) => g.id === id))
         .filter(Boolean);
     const skillLevel = SKILL_LEVELS.find((s) => s.id === displayProfile.skillLevel);
-    const userTags = displayProfile.tags
-        .map((id: string) => TAGS.find((t) => t.id === id))
-        .filter(Boolean);
 
     return (
         <View style={styles.container}>
@@ -229,28 +281,99 @@ export default function ProfileScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>マッチングタグ</Text>
-                        <TouchableOpacity>
-                            <Ionicons name="pencil" size={16} color={Colors.primary} />
+                        <TouchableOpacity onPress={() => setIsEditingTags(!isEditingTags)}>
+                            <Ionicons name={isEditingTags ? 'checkmark' : 'pencil'} size={16} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
-                    {userTags.length > 0 ? (
+
+                    <Text style={styles.tagHint}>
+                        {selectedTags.length}/{MAX_TAGS} タグ設定中 — 同じタグのユーザーとマッチしやすくなります
+                    </Text>
+
+                    {/* 選択済みタグの表示 */}
+                    {selectedTags.length > 0 && (
                         <View style={styles.tagRow}>
-                            {userTags.map((tag: any) => (
-                                <View
-                                    key={tag.id}
-                                    style={[styles.matchTag, { backgroundColor: tag.color + '20', borderColor: tag.color + '40' }]}
-                                >
-                                    <Text style={styles.tagEmoji}>{tag.icon}</Text>
-                                    <Text style={[styles.tagLabel, { color: tag.color }]}>
-                                        {tag.label}
-                                    </Text>
-                                </View>
-                            ))}
+                            {selectedTags.map((tagId) => {
+                                const tag = getTagDisplay(tagId);
+                                return (
+                                    <TouchableOpacity
+                                        key={tagId}
+                                        style={[styles.matchTag, { backgroundColor: tag.color + '20', borderColor: tag.color + '40' }]}
+                                        onPress={() => isEditingTags && removeTag(tagId)}
+                                        activeOpacity={isEditingTags ? 0.6 : 1}
+                                    >
+                                        <Text style={styles.tagEmoji}>{tag.icon}</Text>
+                                        <Text style={[styles.tagLabel, { color: tag.color }]}>
+                                            {tag.label}
+                                        </Text>
+                                        {isEditingTags && (
+                                            <Ionicons name="close-circle" size={14} color={tag.color} />
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
-                    ) : (
-                        <Text style={styles.emptyTagText}>
-                            タグを追加すると、同じタグを持つユーザーとマッチしやすくなります
-                        </Text>
+                    )}
+
+                    {/* 編集モード */}
+                    {isEditingTags && (
+                        <View style={styles.tagEditSection}>
+                            {/* カスタムタグ入力 */}
+                            <View style={styles.customTagInputRow}>
+                                <TextInput
+                                    style={styles.customTagInput}
+                                    value={customTagInput}
+                                    onChangeText={setCustomTagInput}
+                                    placeholder="自由にタグを入力..."
+                                    placeholderTextColor={Colors.textTertiary}
+                                    maxLength={MAX_TAG_LENGTH}
+                                    onSubmitEditing={addCustomTag}
+                                    returnKeyType="done"
+                                />
+                                <TouchableOpacity
+                                    style={[
+                                        styles.addTagButton,
+                                        !customTagInput.trim() && styles.addTagButtonDisabled,
+                                    ]}
+                                    onPress={addCustomTag}
+                                    disabled={!customTagInput.trim()}
+                                >
+                                    <Ionicons name="add" size={20} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* プリセットタグ一覧 */}
+                            <Text style={styles.presetLabel}>おすすめタグ</Text>
+                            <View style={styles.tagRow}>
+                                {TAGS.map((tag) => {
+                                    const isSelected = selectedTags.includes(tag.id);
+                                    return (
+                                        <TouchableOpacity
+                                            key={tag.id}
+                                            style={[
+                                                styles.presetTag,
+                                                isSelected
+                                                    ? { backgroundColor: tag.color + '30', borderColor: tag.color }
+                                                    : { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: Colors.surfaceBorder },
+                                            ]}
+                                            onPress={() => togglePresetTag(tag.id)}
+                                            activeOpacity={0.6}
+                                        >
+                                            <Text style={styles.tagEmoji}>{tag.icon}</Text>
+                                            <Text style={[
+                                                styles.presetTagLabel,
+                                                { color: isSelected ? tag.color : Colors.textSecondary },
+                                            ]}>
+                                                {tag.label}
+                                            </Text>
+                                            {isSelected && (
+                                                <Ionicons name="checkmark" size={14} color={tag.color} />
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        </View>
                     )}
                 </View>
 
@@ -573,5 +696,59 @@ const styles = StyleSheet.create({
         fontSize: FontSize.sm,
         color: Colors.textTertiary,
         fontStyle: 'italic',
+    },
+    tagHint: {
+        fontSize: FontSize.xs,
+        color: Colors.textTertiary,
+        marginBottom: Spacing.sm,
+    },
+    tagEditSection: {
+        marginTop: Spacing.md,
+        gap: Spacing.md,
+    },
+    customTagInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    customTagInput: {
+        flex: 1,
+        height: 44,
+        backgroundColor: Colors.card,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: Colors.surfaceBorder,
+        paddingHorizontal: Spacing.md,
+        fontSize: FontSize.md,
+        color: Colors.text,
+    },
+    addTagButton: {
+        width: 44,
+        height: 44,
+        borderRadius: BorderRadius.md,
+        backgroundColor: Colors.primary,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    addTagButtonDisabled: {
+        opacity: 0.4,
+    },
+    presetLabel: {
+        fontSize: FontSize.sm,
+        fontWeight: '600',
+        color: Colors.textSecondary,
+    },
+    presetTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+    },
+    presetTagLabel: {
+        fontSize: FontSize.sm,
+        fontWeight: '500',
     },
 });
