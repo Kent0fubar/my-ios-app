@@ -9,6 +9,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 
+const TabIcon = ({ name, color, focused }: { name: any, color: string, focused: boolean }) => (
+    <View style={styles.iconContainer}>
+        {focused && (
+            <LinearGradient
+                colors={[Colors.primary, Colors.secondary]}
+                style={styles.activeIndicator}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+            />
+        )}
+        <Ionicons name={name} size={26} color={color} />
+    </View>
+);
+
 export default function TabLayout() {
     const { isAuthenticated, isLoading } = useAuth();
 
@@ -43,21 +57,7 @@ export default function TabLayout() {
                 options={{
                     title: '探す',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={styles.iconContainer}>
-                            {focused && (
-                                <LinearGradient
-                                    colors={[Colors.primary, Colors.secondary]}
-                                    style={styles.activeIndicator}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                />
-                            )}
-                            <Ionicons
-                                name={focused ? 'compass' : 'compass-outline'}
-                                size={26}
-                                color={color}
-                            />
-                        </View>
+                        <TabIcon name={focused ? 'compass' : 'compass-outline'} color={color} focused={focused} />
                     ),
                 }}
             />
@@ -66,21 +66,7 @@ export default function TabLayout() {
                 options={{
                     title: 'マッチ',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={styles.iconContainer}>
-                            {focused && (
-                                <LinearGradient
-                                    colors={[Colors.primary, Colors.secondary]}
-                                    style={styles.activeIndicator}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                />
-                            )}
-                            <Ionicons
-                                name={focused ? 'heart' : 'heart-outline'}
-                                size={26}
-                                color={color}
-                            />
-                        </View>
+                        <TabIcon name={focused ? 'heart' : 'heart-outline'} color={color} focused={focused} />
                     ),
                 }}
             />
@@ -89,21 +75,7 @@ export default function TabLayout() {
                 options={{
                     title: 'メッセージ',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={styles.iconContainer}>
-                            {focused && (
-                                <LinearGradient
-                                    colors={[Colors.primary, Colors.secondary]}
-                                    style={styles.activeIndicator}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                />
-                            )}
-                            <Ionicons
-                                name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
-                                size={26}
-                                color={color}
-                            />
-                        </View>
+                        <TabIcon name={focused ? 'chatbubbles' : 'chatbubbles-outline'} color={color} focused={focused} />
                     ),
                     tabBarBadge: 3,
                     tabBarBadgeStyle: styles.badge,
@@ -114,21 +86,7 @@ export default function TabLayout() {
                 options={{
                     title: 'プロフィール',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={styles.iconContainer}>
-                            {focused && (
-                                <LinearGradient
-                                    colors={[Colors.primary, Colors.secondary]}
-                                    style={styles.activeIndicator}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                />
-                            )}
-                            <Ionicons
-                                name={focused ? 'person' : 'person-outline'}
-                                size={26}
-                                color={color}
-                            />
-                        </View>
+                        <TabIcon name={focused ? 'person' : 'person-outline'} color={color} focused={focused} />
                     ),
                 }}
             />
