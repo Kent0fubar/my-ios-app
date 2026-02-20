@@ -55,7 +55,7 @@ jobs:
       - name: Configure EAS project
         run: |
           if [ -z "$(grep -o 'projectId' app.json)" ]; then
-            eas init --non-interactive
+            eas init --non-interactive --force
           fi
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
