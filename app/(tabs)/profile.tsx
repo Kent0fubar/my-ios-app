@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
 import { INSTRUMENTS, GENRES, SKILL_LEVELS, TAGS } from '../../src/data/mockData';
+import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { authService } from '../../src/services/authService';
 
@@ -247,10 +248,14 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.tagRow}>
                         {userInstruments.map((inst) => (
-                            <View key={inst!.id} style={styles.instrumentTag}>
-                                <Text style={styles.tagEmoji}>{inst!.icon}</Text>
-                                <Text style={styles.tagLabel}>{inst!.label}</Text>
-                            </View>
+                            <InstrumentTag
+                                key={inst!.id}
+                                icon={inst!.icon}
+                                label={inst!.label}
+                                style={styles.profileInstrumentTag}
+                                textStyle={styles.profileTagLabel}
+                                emojiStyle={styles.profileTagEmoji}
+                            />
                         ))}
                     </View>
                 </View>
@@ -265,14 +270,13 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.tagRow}>
                         {userGenres.map((genre) => (
-                            <View
+                            <GenreTag
                                 key={genre!.id}
-                                style={[styles.genreTag, { backgroundColor: genre!.color + '20' }]}
-                            >
-                                <Text style={[styles.genreLabel, { color: genre!.color }]}>
-                                    {genre!.label}
-                                </Text>
-                            </View>
+                                label={genre!.label}
+                                color={genre!.color}
+                                style={styles.profileGenreTag}
+                                textStyle={styles.profileGenreLabel}
+                            />
                         ))}
                     </View>
                 </View>
@@ -605,33 +609,23 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: Spacing.sm,
     },
-    instrumentTag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: Colors.primary + '20',
+    profileInstrumentTag: {
         paddingHorizontal: 14,
         paddingVertical: 8,
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-        borderColor: Colors.primary + '30',
+        gap: 6,
     },
-    tagEmoji: {
+    profileTagEmoji: {
         fontSize: 16,
     },
-    tagLabel: {
+    profileTagLabel: {
         fontSize: FontSize.sm,
-        fontWeight: '600',
-        color: Colors.primaryLight,
     },
-    genreTag: {
+    profileGenreTag: {
         paddingHorizontal: 14,
         paddingVertical: 8,
-        borderRadius: BorderRadius.full,
     },
-    genreLabel: {
+    profileGenreLabel: {
         fontSize: FontSize.sm,
-        fontWeight: '600',
     },
     skillCard: {
         flexDirection: 'row',
@@ -691,6 +685,13 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: BorderRadius.full,
         borderWidth: 1,
+    },
+    tagEmoji: {
+        fontSize: 16,
+    },
+    tagLabel: {
+        fontSize: FontSize.sm,
+        fontWeight: '600',
     },
     emptyTagText: {
         fontSize: FontSize.sm,

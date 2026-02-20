@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
 import { MOCK_USERS, INSTRUMENTS, GENRES, SKILL_LEVELS, UserProfile } from '../../src/data/mockData';
+import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 
 const { width, height } = Dimensions.get('window');
 const SWIPE_THRESHOLD = width * 0.3;
@@ -192,24 +193,14 @@ function SwipeCard({
                 {/* Instruments */}
                 <View style={styles.tagRow}>
                     {userInstruments.slice(0, 3).map((inst) => (
-                        <View key={inst!.id} style={styles.instrumentTag}>
-                            <Text style={styles.tagEmoji}>{inst!.icon}</Text>
-                            <Text style={styles.tagText}>{inst!.label}</Text>
-                        </View>
+                        <InstrumentTag key={inst!.id} icon={inst!.icon} label={inst!.label} />
                     ))}
                 </View>
 
                 {/* Genres */}
                 <View style={styles.tagRow}>
                     {userGenres.slice(0, 4).map((genre) => (
-                        <View
-                            key={genre!.id}
-                            style={[styles.genreTag, { backgroundColor: genre!.color + '30' }]}
-                        >
-                            <Text style={[styles.genreText, { color: genre!.color }]}>
-                                {genre!.label}
-                            </Text>
-                        </View>
+                        <GenreTag key={genre!.id} label={genre!.label} color={genre!.color} opacity="30" />
                     ))}
                 </View>
 
@@ -531,34 +522,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 6,
-    },
-    instrumentTag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: 'rgba(139, 92, 246, 0.2)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-        borderColor: 'rgba(139, 92, 246, 0.3)',
-    },
-    tagEmoji: {
-        fontSize: 12,
-    },
-    tagText: {
-        fontSize: FontSize.xs,
-        color: Colors.primaryLight,
-        fontWeight: '600',
-    },
-    genreTag: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BorderRadius.full,
-    },
-    genreText: {
-        fontSize: FontSize.xs,
-        fontWeight: '600',
     },
     bio: {
         fontSize: FontSize.sm,

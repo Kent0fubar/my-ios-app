@@ -35,6 +35,7 @@ import {
     getPasswordStrength,
     getSecureAuthErrorMessage,
 } from '../../src/lib/security';
+import { ErrorBanner } from '../../src/components/ErrorBanner';
 
 export default function SignupScreen() {
     const [name, setName] = useState('');
@@ -176,12 +177,7 @@ export default function SignupScreen() {
                 </View>
 
                 {/* General error */}
-                {errors.general && (
-                    <View style={styles.errorBanner}>
-                        <Ionicons name="alert-circle" size={18} color={Colors.error} />
-                        <Text style={styles.errorBannerText}>{errors.general}</Text>
-                    </View>
-                )}
+                {errors.general && <ErrorBanner message={errors.general} />}
 
                 {/* Name input */}
                 <View style={styles.inputGroup}>
@@ -453,23 +449,6 @@ const styles = StyleSheet.create({
         fontSize: FontSize.md,
         color: Colors.textSecondary,
         lineHeight: 24,
-    },
-    errorBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-        backgroundColor: Colors.error + '15',
-        borderWidth: 1,
-        borderColor: Colors.error + '30',
-        borderRadius: BorderRadius.lg,
-        padding: Spacing.md,
-        marginBottom: Spacing.lg,
-    },
-    errorBannerText: {
-        flex: 1,
-        fontSize: FontSize.sm,
-        color: Colors.error,
-        lineHeight: 20,
     },
     inputGroup: {
         marginBottom: Spacing.md,

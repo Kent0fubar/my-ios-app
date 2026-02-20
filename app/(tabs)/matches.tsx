@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
 import { MOCK_USERS, INSTRUMENTS, GENRES } from '../../src/data/mockData';
+import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 
 const { width } = Dimensions.get('window');
 
@@ -137,29 +138,26 @@ export default function MatchesScreen() {
                                     </View>
                                     <View style={styles.matchTags}>
                                         {userInstruments.slice(0, 2).map((inst) => (
-                                            <Text key={inst!.id} style={styles.matchTagText}>
-                                                {inst!.icon} {inst!.label}
-                                            </Text>
+                                            <InstrumentTag
+                                                key={inst!.id}
+                                                icon={inst!.icon}
+                                                label={inst!.label}
+                                                style={styles.matchTagBase}
+                                                textStyle={styles.matchTagText}
+                                                emojiStyle={styles.matchTagEmoji}
+                                            />
                                         ))}
                                     </View>
                                     <View style={styles.matchGenres}>
                                         {userGenres.slice(0, 3).map((genre) => (
-                                            <View
+                                            <GenreTag
                                                 key={genre!.id}
-                                                style={[
-                                                    styles.matchGenreTag,
-                                                    { backgroundColor: genre!.color + '20' },
-                                                ]}
-                                            >
-                                                <Text
-                                                    style={[
-                                                        styles.matchGenreText,
-                                                        { color: genre!.color },
-                                                    ]}
-                                                >
-                                                    {genre!.label}
-                                                </Text>
-                                            </View>
+                                                label={genre!.label}
+                                                color={genre!.color}
+                                                opacity="20"
+                                                style={styles.matchGenreTag}
+                                                textStyle={styles.matchGenreText}
+                                            />
                                         ))}
                                     </View>
                                 </View>
@@ -308,6 +306,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: Spacing.sm,
     },
+    matchTagBase: {
+        paddingHorizontal: 0,
+        paddingVertical: 0,
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+        borderWidth: 0,
+    },
+    matchTagEmoji: {
+        fontSize: FontSize.xs,
+    },
     matchTagText: {
         fontSize: FontSize.xs,
         color: Colors.textSecondary,
@@ -319,7 +327,6 @@ const styles = StyleSheet.create({
     matchGenreTag: {
         paddingHorizontal: 8,
         paddingVertical: 2,
-        borderRadius: BorderRadius.full,
     },
     matchGenreText: {
         fontSize: 10,
