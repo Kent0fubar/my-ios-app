@@ -177,7 +177,7 @@ export default function ChatScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/messages')}>
                     <Ionicons name="chevron-back" size={24} color={Colors.text} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.userInfo}>

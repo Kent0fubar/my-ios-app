@@ -164,7 +164,7 @@ export default function SignupScreen() {
                 keyboardShouldPersistTaps="handled"
             >
                 {/* Back button */}
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
                     <Ionicons name="chevron-back" size={24} color={Colors.textSecondary} />
                 </TouchableOpacity>
 

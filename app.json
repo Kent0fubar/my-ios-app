@@ -15,13 +15,22 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bandlink.app",
+      "bundleIdentifier": "com.bandlink.app.dev",
       "infoPlist": {
         "NSCameraUsageDescription": "プロフィール写真の撮影に使用します",
         "NSPhotoLibraryUsageDescription": "プロフィール写真の選択に使用します",
         "NSMicrophoneUsageDescription": "演奏サンプルの録音に使用します",
-        "NSLocationWhenInUseUsageDescription": "近くのミュージシャンを探すために使用します"
-      }
+        "NSLocationWhenInUseUsageDescription": "近くのミュージシャンを探すために使用します",
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.593327824641-sku9lqe2p1n43b5i6gq8odletupt1gc7"
+            ]
+          }
+        ]
+      },
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -68,6 +77,12 @@
         {
           "microphonePermission": "演奏サンプルを録音するためにマイクを使用します"
         }
+      ],
+      [
+        "expo-apple-authentication"
+      ],
+      [
+        "@react-native-google-signin/google-signin"
       ]
     ]
   }

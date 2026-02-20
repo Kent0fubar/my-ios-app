@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { authService } from '../../src/services/authService';
+import { useAuth } from '../../src/contexts/AuthContext';
 import {
     validateEmail,
     sanitizeEmail,
@@ -32,6 +33,7 @@ import {
 import { ErrorBanner } from '../../src/components/ErrorBanner';
 
 export default function LoginScreen() {
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -39,6 +41,13 @@ export default function LoginScreen() {
     const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
 
     const passwordRef = useRef<TextInput>(null);
+
+    // 認証済みならタブへリダイレクト
+    React.useEffect(() => {
+        if (isAuthenticated && !authLoading) {
+            router.replace('/(tabs)/discover');
+        }
+    }, [isAuthenticated, authLoading]);
 
     const handleLogin = async () => {
         // バリデーション
@@ -81,11 +90,14 @@ export default function LoginScreen() {
 
     const handleAppleLogin = async () => {
         setIsLoading(true);
+        setErrors({});
         try {
-            await authService.signInWithApple();
-            // OAuth redirction might handle state, but if it returns seamlessly:
+            const session = await authService.signInWithApple();
+            if (session) {
+                router.replace('/(tabs)/discover');
+            }
         } catch (error: any) {
-            setErrors({ general: 'Appleでのログインに失敗しました。' });
+            setErrors({ general: 'Appleログインに失敗しました\n' + (error.message || '不明なエラー') });
         } finally {
             setIsLoading(false);
         }
@@ -93,10 +105,14 @@ export default function LoginScreen() {
 
     const handleGoogleLogin = async () => {
         setIsLoading(true);
+        setErrors({});
         try {
-            await authService.signInWithGoogle();
+            const session = await authService.signInWithGoogle();
+            if (session) {
+                router.replace('/(tabs)/discover');
+            }
         } catch (error: any) {
-            setErrors({ general: 'Googleでのログインに失敗しました。' });
+            setErrors({ general: 'Googleログインに失敗しました\n' + (error.message || '不明なエラー') });
         } finally {
             setIsLoading(false);
         }
@@ -118,7 +134,7 @@ export default function LoginScreen() {
                 keyboardShouldPersistTaps="handled"
             >
                 {/* Back button */}
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
                     <Ionicons name="chevron-back" size={24} color={Colors.textSecondary} />
                 </TouchableOpacity>
 
