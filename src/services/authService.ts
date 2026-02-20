@@ -9,6 +9,7 @@ import * as Linking from 'expo-linking';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Google Sign-In の初期設定
 GoogleSignin.configure({
@@ -39,6 +40,10 @@ const performOAuth = async (provider: 'apple' | 'google') => {
             console.log('[OAuth] Attempting to open URL:', data.url);
             console.log('[OAuth] Redirect URL set as:', redirectUrl);
         }
+
+        // ユーザーにブラウザが開くことを通知（無反応に見えるのを防ぐ）
+        // Platform.OS === 'ios' && Alert.alert('ログイン', 'ブラウザを開いてログインを完了します。');
+
         // WebView/ブラウザモードで各社の認証画面を開く
         const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
 
@@ -129,34 +134,46 @@ export const authService = {
      * Apple ID でログイン（iOS向けネイティブ / 他はOAuth）
      */
     async signInWithApple() {
-        if (Platform.OS === 'ios') {
-            try {
-                const credential = await AppleAuthentication.signInAsync({
-                    requestedScopes: [
-                        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-                        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-                    ],
-                });
+        // 開発環境（Expo Go）かネイティブアプリかを判定
+        const isExpoGo = Constants.executionEnvironment === 'storeClient';
+        const isNativeIos = Platform.OS === 'ios' && !isExpoGo;
 
-                if (credential.identityToken) {
-                    const { data, error } = await supabase.auth.signInWithIdToken({
-                        provider: 'apple',
-                        token: credential.identityToken,
+        console.log('[Auth] signInWithApple - Environment:', { isExpoGo, isNativeIos });
+
+        if (isNativeIos) {
+            try {
+                const isAvailable = await AppleAuthentication.isAvailableAsync();
+                if (isAvailable) {
+                    const credential = await AppleAuthentication.signInAsync({
+                        requestedScopes: [
+                            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+                            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+                        ],
                     });
-                    if (error) throw error;
-                    return data.session;
+
+                    if (credential.identityToken) {
+                        const { data, error } = await supabase.auth.signInWithIdToken({
+                            provider: 'apple',
+                            token: credential.identityToken,
+                        });
+                        if (error) throw error;
+                        return data.session;
+                    }
                 } else {
-                    throw new Error('Apple認証トークンの取得に失敗しました');
+                    console.log('[Auth] Apple Sign-In is not available on this device.');
                 }
             } catch (e: any) {
                 if (e.code === 'ERR_CANCELED') {
+                    console.log('[Auth] Native Apple Auth cancelled by user.');
                     return null; // ユーザーキャンセル
                 }
-                throw e;
+                console.warn('[Auth] Native Apple Auth failed:', e.message);
+                // 失敗した場合は OAuth へフォールバック
             }
         }
 
-        // iOS 以外またはネイティブが利用不可の場合は OAuth ブラウザフロー
+        // Expo Go またはネイティブ失敗時はブラウザでの OAuth フロー
+        console.log('[Auth] Falling back to OAuth for Apple');
         return performOAuth('apple');
     },
 
@@ -164,28 +181,40 @@ export const authService = {
      * Google でログイン（iOS/Androidネイティブ / 他はOAuth）
      */
     async signInWithGoogle() {
-        if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        const isExpoGo = Constants.executionEnvironment === 'storeClient';
+        const isNative = (Platform.OS === 'ios' || Platform.OS === 'android') && !isExpoGo;
+
+        console.log('[Auth] signInWithGoogle - Environment:', { isExpoGo, isNative });
+
+        if (isNative) {
             try {
                 await GoogleSignin.hasPlayServices();
                 const userInfo = await GoogleSignin.signIn();
 
-                if (userInfo.data?.idToken) {
+                if (userInfo.type === 'success' && userInfo.data.idToken) {
                     const { data, error } = await supabase.auth.signInWithIdToken({
                         provider: 'google',
                         token: userInfo.data.idToken,
                     });
                     if (error) throw error;
                     return data.session;
+                } else if (userInfo.type === 'cancelled') {
+                    console.log('[Auth] Native Google Sign-In cancelled.');
+                    return null;
                 } else {
-                    throw new Error('Google認証トークンの取得に失敗しました');
+                    throw new Error('Google ID Token not found or sign-in failed.');
                 }
             } catch (e: any) {
-                // キャンセル時はエラーを投げない
-                return null;
+                if (e.code === '7') { // GoogleSignin.SIGN_IN_CANCELLED
+                    console.log('[Auth] Native Google Sign-In cancelled by user.');
+                    return null; // Cancel
+                }
+                console.warn('[Auth] Native Google Sign-In failed:', e.message);
             }
         }
 
-        // ネイティブが利用不可の場合は OAuth ブラウザフロー
+        // Expo Go またはネイティブ失敗時はブラウザでの OAuth フロー
+        console.log('[Auth] Falling back to OAuth for Google');
         return performOAuth('google');
     },
 

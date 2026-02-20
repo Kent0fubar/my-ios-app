@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -6,22 +6,57 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
-    Dimensions,
+    ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
-import { MOCK_USERS, INSTRUMENTS, GENRES } from '../../src/data/mockData';
+import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { matchService } from '../../src/services/dataService';
 import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 
-const { width } = Dimensions.get('window');
-
-// マッチしたユーザー（デモ用に最初の3人）
-const MATCHED_USERS = MOCK_USERS.slice(0, 3);
-const NEW_MATCHES = MOCK_USERS.slice(0, 2);
-
 export default function MatchesScreen() {
+    const { user } = useAuth();
+    const [matches, setMatches] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchMatches = async () => {
+        if (!user) return;
+        try {
+            const data = await matchService.getMatches(user.id);
+            setMatches(data);
+        } catch (error) {
+            console.error('[Matches] Fetch error:', error);
+        } finally {
+            setIsLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchMatches();
+    }, [user]);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchMatches();
+    };
+
+    if (isLoading && !refreshing) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+        );
+    }
+
+    // 分類
+    const newMatches = matches.filter(m => !m.lastMessage);
+    const activeMatches = matches.filter(m => !!m.lastMessage);
+
     return (
         <View style={styles.container}>
             <LinearGradient
@@ -34,143 +69,109 @@ export default function MatchesScreen() {
                 <Text style={styles.headerTitle}>マッチ</Text>
                 <View style={styles.matchCount}>
                     <Ionicons name="heart" size={14} color={Colors.secondary} />
-                    <Text style={styles.matchCountText}>{MATCHED_USERS.length}</Text>
+                    <Text style={styles.matchCountText}>{matches.length}</Text>
                 </View>
             </View>
 
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+                }
             >
                 {/* New matches - horizontal scroll */}
+                {newMatches.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>新しいマッチ 🎉</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.newMatchesList}
+                        >
+                            {newMatches.map((match) => {
+                                const p = match.otherProfile;
+                                return (
+                                    <TouchableOpacity
+                                        key={match.id}
+                                        style={styles.newMatchCard}
+                                        activeOpacity={0.8}
+                                        onPress={() => router.push(`/chat/${p.id}`)}
+                                    >
+                                        <LinearGradient
+                                            colors={[Colors.primary, Colors.secondary]}
+                                            style={styles.newMatchGradient}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                        >
+                                            <Image
+                                                source={p.avatar_url ? { uri: p.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                                                style={styles.newMatchImage}
+                                            />
+                                        </LinearGradient>
+                                        <Text style={styles.newMatchName}>{p.name}</Text>
+                                        <Text style={styles.newMatchInstrument}>
+                                            {p.instruments?.[0] || '楽器未設定'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    </View>
+                )}
+
+                {/* Active matches */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>新しいマッチ 🎉</Text>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.newMatchesList}
-                    >
-                        {NEW_MATCHES.map((user) => {
-                            const mainInstrument = INSTRUMENTS.find(
-                                (i) => i.id === user.instruments[0]
-                            );
+                    <Text style={styles.sectionTitle}>最近のメッセージ</Text>
+                    {activeMatches.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="chatbubbles-outline" size={48} color={Colors.textTertiary} />
+                            <Text style={styles.emptyText}>メッセージはまだありません</Text>
+                            <Text style={styles.emptySubText}>新しいマッチ相手にあいさつしてみましょう！</Text>
+                        </View>
+                    ) : (
+                        activeMatches.map((match) => {
+                            const p = match.otherProfile;
                             return (
                                 <TouchableOpacity
-                                    key={user.id}
-                                    style={styles.newMatchCard}
-                                    activeOpacity={0.8}
-                                    onPress={() => router.push(`/chat/${user.id}`)}
+                                    key={match.id}
+                                    style={styles.matchItem}
+                                    activeOpacity={0.7}
+                                    onPress={() => router.push(`/chat/${p.id}`)}
                                 >
-                                    <LinearGradient
-                                        colors={[Colors.primary, Colors.secondary]}
-                                        style={styles.newMatchGradient}
-                                        start={{ x: 0, y: 0 }}
-                                        end={{ x: 1, y: 1 }}
-                                    >
+                                    <View style={styles.avatarContainer}>
                                         <Image
-                                            source={{ uri: user.imageUrl }}
-                                            style={styles.newMatchImage}
+                                            source={p.avatar_url ? { uri: p.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                                            style={styles.matchAvatar}
                                         />
-                                    </LinearGradient>
-                                    <Text style={styles.newMatchName}>{user.name}</Text>
-                                    <Text style={styles.newMatchInstrument}>
-                                        {mainInstrument?.icon} {mainInstrument?.label}
-                                    </Text>
+                                        {p.is_online && <View style={styles.onlineBadge} />}
+                                    </View>
+                                    <View style={styles.matchInfo}>
+                                        <View style={styles.matchNameRow}>
+                                            <Text style={styles.matchName}>{p.name}</Text>
+                                            {p.is_verified && (
+                                                <Ionicons
+                                                    name="checkmark-circle"
+                                                    size={16}
+                                                    color={Colors.accent}
+                                                />
+                                            )}
+                                        </View>
+                                        <Text style={styles.lastMessage} numberOfLines={1}>
+                                            {match.lastMessage?.content || '新しいマッチです！メッセージを送ってみましょう'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.chatButton}>
+                                        <Ionicons
+                                            name="chatbubble"
+                                            size={18}
+                                            color={Colors.primary}
+                                        />
+                                    </View>
                                 </TouchableOpacity>
                             );
-                        })}
-
-                        {/* Premium upsell card */}
-                        <TouchableOpacity
-                            style={styles.premiumUpsellCard}
-                            activeOpacity={0.8}
-                            onPress={() => router.push('/premium')}
-                        >
-                            <LinearGradient
-                                colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
-                                style={styles.premiumUpsellGradient}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                            >
-                                <Ionicons name="lock-closed" size={32} color="#fff" />
-                            </LinearGradient>
-                            <Text style={styles.premiumUpsellText}>もっと見る</Text>
-                            <Text style={styles.premiumUpsellSub}>Premium</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
-                </View>
-
-                {/* All matches */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>すべてのマッチ</Text>
-                    {MATCHED_USERS.map((user) => {
-                        const userInstruments = user.instruments
-                            .map((id) => INSTRUMENTS.find((i) => i.id === id))
-                            .filter(Boolean);
-                        const userGenres = user.genres
-                            .map((id) => GENRES.find((g) => g.id === id))
-                            .filter(Boolean);
-
-                        return (
-                            <TouchableOpacity
-                                key={user.id}
-                                style={styles.matchItem}
-                                activeOpacity={0.7}
-                                onPress={() => router.push(`/chat/${user.id}`)}
-                            >
-                                <Image
-                                    source={{ uri: user.imageUrl }}
-                                    style={styles.matchAvatar}
-                                />
-                                <View style={styles.matchInfo}>
-                                    <View style={styles.matchNameRow}>
-                                        <Text style={styles.matchName}>{user.name}</Text>
-                                        {user.isVerified && (
-                                            <Ionicons
-                                                name="checkmark-circle"
-                                                size={16}
-                                                color={Colors.accent}
-                                            />
-                                        )}
-                                        {user.isPremium && (
-                                            <Ionicons name="star" size={14} color={Colors.gold} />
-                                        )}
-                                    </View>
-                                    <View style={styles.matchTags}>
-                                        {userInstruments.slice(0, 2).map((inst) => (
-                                            <InstrumentTag
-                                                key={inst!.id}
-                                                icon={inst!.icon}
-                                                label={inst!.label}
-                                                style={styles.matchTagBase}
-                                                textStyle={styles.matchTagText}
-                                                emojiStyle={styles.matchTagEmoji}
-                                            />
-                                        ))}
-                                    </View>
-                                    <View style={styles.matchGenres}>
-                                        {userGenres.slice(0, 3).map((genre) => (
-                                            <GenreTag
-                                                key={genre!.id}
-                                                label={genre!.label}
-                                                color={genre!.color}
-                                                opacity="20"
-                                                style={styles.matchGenreTag}
-                                                textStyle={styles.matchGenreText}
-                                            />
-                                        ))}
-                                    </View>
-                                </View>
-                                <TouchableOpacity style={styles.chatButton}>
-                                    <Ionicons
-                                        name="chatbubble"
-                                        size={18}
-                                        color={Colors.primary}
-                                    />
-                                </TouchableOpacity>
-                            </TouchableOpacity>
-                        );
-                    })}
+                        })
+                    )}
                 </View>
             </ScrollView>
         </View>
@@ -180,6 +181,12 @@ export default function MatchesScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        backgroundColor: Colors.background,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
         backgroundColor: Colors.background,
     },
     header: {
@@ -254,26 +261,6 @@ const styles = StyleSheet.create({
         fontSize: FontSize.xs,
         color: Colors.textSecondary,
     },
-    premiumUpsellCard: {
-        alignItems: 'center',
-        gap: 6,
-    },
-    premiumUpsellGradient: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    premiumUpsellText: {
-        fontSize: FontSize.sm,
-        fontWeight: '600',
-        color: Colors.gold,
-    },
-    premiumUpsellSub: {
-        fontSize: FontSize.xs,
-        color: Colors.textTertiary,
-    },
     matchItem: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -283,10 +270,24 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: Colors.surfaceBorder,
     },
+    avatarContainer: {
+        position: 'relative',
+    },
     matchAvatar: {
         width: 60,
         height: 60,
         borderRadius: 30,
+    },
+    onlineBadge: {
+        position: 'absolute',
+        bottom: 2,
+        right: 2,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: '#10B981',
+        borderWidth: 2,
+        borderColor: Colors.background,
     },
     matchInfo: {
         flex: 1,
@@ -302,35 +303,9 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: Colors.text,
     },
-    matchTags: {
-        flexDirection: 'row',
-        gap: Spacing.sm,
-    },
-    matchTagBase: {
-        paddingHorizontal: 0,
-        paddingVertical: 0,
-        backgroundColor: 'transparent',
-        borderColor: 'transparent',
-        borderWidth: 0,
-    },
-    matchTagEmoji: {
-        fontSize: FontSize.xs,
-    },
-    matchTagText: {
-        fontSize: FontSize.xs,
+    lastMessage: {
+        fontSize: FontSize.sm,
         color: Colors.textSecondary,
-    },
-    matchGenres: {
-        flexDirection: 'row',
-        gap: 4,
-    },
-    matchGenreTag: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-    },
-    matchGenreText: {
-        fontSize: 10,
-        fontWeight: '600',
     },
     chatButton: {
         width: 40,
@@ -341,5 +316,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 1,
         borderColor: 'rgba(139, 92, 246, 0.2)',
+    },
+    emptyContainer: {
+        paddingVertical: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.md,
+    },
+    emptyText: {
+        fontSize: FontSize.lg,
+        fontWeight: '700',
+        color: Colors.textSecondary,
+    },
+    emptySubText: {
+        fontSize: FontSize.md,
+        color: Colors.textTertiary,
+        textAlign: 'center',
+        paddingHorizontal: Spacing.xl,
     },
 });

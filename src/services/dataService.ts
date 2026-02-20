@@ -155,7 +155,7 @@ export const discoveryService = {
                 .returns<{ swiped_id: string }[]>();
 
             const swipedIds = (swipedData?.map((s) => s.swiped_id) || [])
-                .filter((id): id is string => typeof id === 'string' && UUID_REGEX.test(id));
+                .filter((id) => UUID_REGEX.test(id));
             const excludeIds = [myUserId, ...swipedIds];
 
             let query = supabase
@@ -179,10 +179,10 @@ export const discoveryService = {
 
             // マッチングスコアを計算してソート
             const scoredUsers = data.map((profile) => {
-                const theirTags: string[] = (profile as any).tags || [];
-                const theirGenres: string[] = profile.genres || [];
-                const theirInstruments: string[] = profile.instruments || [];
-                const theirLookingFor: string[] = profile.looking_for || [];
+                const theirTags = profile.tags || [];
+                const theirGenres = profile.genres || [];
+                const theirInstruments = profile.instruments || [];
+                const theirLookingFor = profile.looking_for || [];
 
                 const tagOverlap = myTags.filter(t => theirTags.includes(t)).length;
                 const genreOverlap = myGenres.filter(g => theirGenres.includes(g)).length;
@@ -195,11 +195,12 @@ export const discoveryService = {
                 const maxLookingFor = Math.max(myLookingFor.length, theirLookingFor.length, 1);
 
                 // スコア: タグ40% + 目的25% + ジャンル20% + 楽器15%
-                const tagScore = (tagOverlap / maxTags) * 40;
-                const lookingForScore = (lookingForOverlap / maxLookingFor) * 25;
-                const genreScore = (genreOverlap / maxGenres) * 20;
-                const instrumentScore = (instrumentOverlap / maxInstruments) * 15;
-                const matchScore = Math.round(tagScore + lookingForScore + genreScore + instrumentScore);
+                const matchScore = Math.round(
+                    (tagOverlap / maxTags) * 40 +
+                    (lookingForOverlap / maxLookingFor) * 25 +
+                    (genreOverlap / maxGenres) * 20 +
+                    (instrumentOverlap / maxInstruments) * 15
+                );
 
                 let distance = 9999;
                 if (options?.latitude && options?.longitude && profile.latitude && profile.longitude) {
@@ -213,14 +214,14 @@ export const discoveryService = {
             });
 
             const filtered = options?.radiusKm
-                ? scoredUsers.filter((p: any) => p.distance <= options.radiusKm!)
+                ? scoredUsers.filter((p) => p.distance <= options.radiusKm!)
                 : scoredUsers;
 
             // マッチスコア降順（同スコアなら距離昇順）
-            return filtered.sort((a: any, b: any) => {
+            return filtered.sort((a, b) => {
                 if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
-                return a.distance - b.distance;
-            }) as any;
+                return (a.distance || 9999) - (b.distance || 9999);
+            });
         });
     },
 
@@ -264,6 +265,17 @@ export const discoveryService = {
                     .single();
 
                 if (reverseSwipe) {
+                    // 既存のマッチがないか再確認
+                    const { data: existingMatch } = await supabase
+                        .from('matches')
+                        .select('id')
+                        .or(`and(user1_id.eq.${swiperId},user2_id.eq.${swipedId}),and(user1_id.eq.${swipedId},user2_id.eq.${swiperId})`)
+                        .maybeSingle();
+
+                    if (existingMatch) {
+                        return { matched: true, matchId: existingMatch.id };
+                    }
+
                     // マッチ成立！
                     const matchData: any = {
                         user1_id: swiperId,
@@ -298,28 +310,67 @@ export const discoveryService = {
 // ============================================================
 export const matchService = {
     /**
-     * マッチ一覧を取得
+     * マッチ一覧を取得（最新メッセージ付き）
      */
-    async getMatches(userId: string): Promise<(Match & { otherProfile: Profile })[]> {
-        // SQLインジェクション防止: UUID形式を検証
+    async getMatches(userId: string): Promise<(Match & { otherProfile: Profile; lastMessage?: Message })[]> {
         validateUUID(userId, 'ユーザーID');
 
-        const { data, error } = await supabase
+        // マッチとプロフィールを取得
+        const { data: matchesData, error: matchesError } = await supabase
             .from('matches')
             .select(`
-        *,
-        profile1:profiles!matches_user1_id_fkey(*),
-        profile2:profiles!matches_user2_id_fkey(*)
-      `)
+                *,
+                profile1:profiles!matches_user1_id_fkey(*),
+                profile2:profiles!matches_user2_id_fkey(*)
+            `)
             .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (matchesError) throw matchesError;
+        if (!matchesData) return [];
 
-        return (data || []).map((match: any) => ({
-            ...match,
-            otherProfile: match.user1_id === userId ? match.profile2 : match.profile1,
+        // 各マッチの最新メッセージを取得（まとめて取得するのは複雑なため、Promise.allで個別取得）
+        const matchesWithMessages = await Promise.all(matchesData.map(async (match: any) => {
+            const { data: messages, error: msgError } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('match_id', match.id)
+                .order('created_at', { ascending: false })
+                .limit(1);
+
+            return {
+                ...match,
+                otherProfile: match.user1_id === userId ? match.profile2 : match.profile1,
+                lastMessage: messages && messages.length > 0 ? messages[0] : undefined
+            };
         }));
+
+        return matchesWithMessages;
+    },
+
+    /**
+     * 2ユーザー間の既存マッチを取得するか、なければ作成する
+     */
+    async getOrCreateMatch(user1Id: string, user2Id: string): Promise<Match | null> {
+        validateUUID(user1Id, 'ユーザーID1');
+        validateUUID(user2Id, 'ユーザーID2');
+        const { data: existing, error } = await supabase
+            .from('matches')
+            .select('*')
+            .or(`and(user1_id.eq.${user1Id},user2_id.eq.${user2Id}),and(user1_id.eq.${user2Id},user2_id.eq.${user1Id})`)
+            .limit(1);
+
+        if (error) throw error;
+        if (existing && existing.length > 0) return existing[0];
+
+        const { data: newMatch, error: insertError } = await supabase
+            .from('matches')
+            .insert({ user1_id: user1Id, user2_id: user2Id })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+        return newMatch;
     },
 };
 
