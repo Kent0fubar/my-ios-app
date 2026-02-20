@@ -135,16 +135,17 @@ export const discoveryService = {
             // SQLインジェクション防止: myUserIdのUUID形式を検証
             validateUUID(myUserId, 'ユーザーID');
 
-            // 自分のプロフィールを取得（タグマッチング計算用）
+            // 自分のプロフィールを取得（マッチング計算用）
             const { data: myProfile } = await supabase
                 .from('profiles')
-                .select('tags, genres, instruments')
+                .select('tags, genres, instruments, looking_for')
                 .eq('id', myUserId)
                 .single();
 
             const myTags: string[] = (myProfile as any)?.tags || [];
             const myGenres: string[] = (myProfile as any)?.genres || [];
             const myInstruments: string[] = (myProfile as any)?.instruments || [];
+            const myLookingFor: string[] = (myProfile as any)?.looking_for || [];
 
             // 既にスワイプしたユーザーIDを取得
             const { data: swipedData } = await supabase
@@ -176,25 +177,29 @@ export const discoveryService = {
 
             if (!data) return [];
 
-            // タグマッチングスコアを計算してソート
+            // マッチングスコアを計算してソート
             const scoredUsers = data.map((profile) => {
                 const theirTags: string[] = (profile as any).tags || [];
                 const theirGenres: string[] = profile.genres || [];
                 const theirInstruments: string[] = profile.instruments || [];
+                const theirLookingFor: string[] = profile.looking_for || [];
 
                 const tagOverlap = myTags.filter(t => theirTags.includes(t)).length;
                 const genreOverlap = myGenres.filter(g => theirGenres.includes(g)).length;
                 const instrumentOverlap = myInstruments.filter(i => theirInstruments.includes(i)).length;
+                const lookingForOverlap = myLookingFor.filter(l => theirLookingFor.includes(l)).length;
 
                 const maxTags = Math.max(myTags.length, theirTags.length, 1);
                 const maxGenres = Math.max(myGenres.length, theirGenres.length, 1);
                 const maxInstruments = Math.max(myInstruments.length, theirInstruments.length, 1);
+                const maxLookingFor = Math.max(myLookingFor.length, theirLookingFor.length, 1);
 
-                // スコア: タグ一致50% + ジャンル一致30% + 楽器一致20%
-                const tagScore = (tagOverlap / maxTags) * 50;
-                const genreScore = (genreOverlap / maxGenres) * 30;
-                const instrumentScore = (instrumentOverlap / maxInstruments) * 20;
-                const matchScore = Math.round(tagScore + genreScore + instrumentScore);
+                // スコア: タグ40% + 目的25% + ジャンル20% + 楽器15%
+                const tagScore = (tagOverlap / maxTags) * 40;
+                const lookingForScore = (lookingForOverlap / maxLookingFor) * 25;
+                const genreScore = (genreOverlap / maxGenres) * 20;
+                const instrumentScore = (instrumentOverlap / maxInstruments) * 15;
+                const matchScore = Math.round(tagScore + lookingForScore + genreScore + instrumentScore);
 
                 let distance = 9999;
                 if (options?.latitude && options?.longitude && profile.latitude && profile.longitude) {
