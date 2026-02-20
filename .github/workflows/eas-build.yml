@@ -1,14 +1,14 @@
-name: EAS Build & Submit iOS
+name: CI Check & EAS Build
 
 on:
   push:
     branches:
-      - main          # mainブランチへのpush → 本番ビルド＆Submit
-      - develop       # developブランチへのpush → プレビュービルド
+      - main
+      - develop
   pull_request:
     branches:
-      - main          # mainへのPR → プレビュービルドで検証
-  workflow_dispatch:   # 手動実行も可能
+      - main
+  workflow_dispatch:
     inputs:
       profile:
         description: 'ビルドプロファイル (development/preview/production)'
@@ -21,37 +21,63 @@ on:
           - production
 
 jobs:
-  build-ios:
-    name: Build iOS (EAS)
+  # ============================================================
+  # 全pushで実行: TypeScriptチェック + テスト
+  # ============================================================
+  check:
+    name: TypeScript & Tests
     runs-on: ubuntu-latest
 
     steps:
-      # 1. リポジトリのチェックアウト
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Node.js のセットアップ（LTS版）
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20.x
           cache: npm
 
-      # 3. 依存パッケージのインストール
       - name: Install dependencies
         run: npm ci
 
-      # 4. EAS CLI のインストール
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test
+
+  # ============================================================
+  # iOS ビルド: 手動実行(workflow_dispatch)のみ
+  # Apple Developer の証明書設定が必要
+  # ============================================================
+  build-ios:
+    name: Build iOS (EAS)
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Install EAS CLI
         run: npm install -g eas-cli
 
-      # 5. Expo アカウントでログイン
       - name: Login to Expo
         run: eas whoami
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      # 5.5. EAS プロジェクトの初期化（未設定の場合）
       - name: Configure EAS project
         run: |
           if [ -z "$(grep -o 'projectId' app.json)" ]; then
@@ -60,33 +86,19 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      # 6. ビルドプロファイルの決定
-      #    - main ブランチ → production
-      #    - develop ブランチ / PR → preview
-      #    - 手動実行 → 入力値を使用
-      - name: Set build profile
-        id: profile
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "profile=${{ github.event.inputs.profile }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo "profile=production" >> $GITHUB_OUTPUT
-          else
-            echo "profile=preview" >> $GITHUB_OUTPUT
-          fi
-
-      # 7. iOS ビルド
-      - name: EAS Build for iOS (${{ steps.profile.outputs.profile }})
-        run: eas build --platform ios --profile ${{ steps.profile.outputs.profile }} --non-interactive
+      - name: EAS Build for iOS (${{ github.event.inputs.profile }})
+        run: eas build --platform ios --profile ${{ github.event.inputs.profile }} --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-  # 本番ビルド時のみ TestFlight へ Submit
+  # ============================================================
+  # 本番 Submit: 手動 production ビルド後のみ
+  # ============================================================
   submit-ios:
     name: Submit to TestFlight
     runs-on: ubuntu-latest
     needs: build-ios
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'production'
 
     steps:
       - name: Checkout repository
