@@ -150,7 +150,6 @@ const styles = StyleSheet.create({
         height: 88,
         paddingBottom: 30,
         paddingTop: 8,
-        backdropFilter: 'blur(20px)',
     },
     tabLabel: {
         fontSize: 10,
