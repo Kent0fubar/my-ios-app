@@ -50,7 +50,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                 origin: false,
             },
             eas: {
-                // eas build:configure 実行時に自動設定されます
+                // eas build:configure で取得したプロジェクトIDを設定
+                projectId: "6275ca9a-0e0f-40f4-b66b-ca251124475a"
             },
             ...environmentConfig,
         },
