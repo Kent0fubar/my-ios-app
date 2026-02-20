@@ -32,34 +32,40 @@ function SwipeCard({
     onSwipeRight: () => void;
     onSuperLike: () => void;
 }) {
+    const propsRef = useRef({ isFirst, onSwipeLeft, onSwipeRight, onSuperLike });
+    // renderごとに最新のpropsを保持
+    propsRef.current = { isFirst, onSwipeLeft, onSwipeRight, onSuperLike };
+
     const position = useRef(new Animated.ValueXY()).current;
     const rotateAnim = useRef(new Animated.Value(0)).current;
 
     const panResponder = useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => isFirst,
+            onStartShouldSetPanResponder: () => propsRef.current.isFirst,
             onMoveShouldSetPanResponder: (_, gesture) =>
-                isFirst && (Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5),
+                propsRef.current.isFirst && (Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5),
             onPanResponderMove: (_, gesture) => {
+                if (!propsRef.current.isFirst) return;
                 position.setValue({ x: gesture.dx, y: gesture.dy });
                 rotateAnim.setValue(gesture.dx);
             },
             onPanResponderRelease: (_, gesture) => {
+                if (!propsRef.current.isFirst) return;
                 if (gesture.dx > SWIPE_THRESHOLD) {
                     Animated.spring(position, {
                         toValue: { x: width + 100, y: gesture.dy },
                         useNativeDriver: true,
-                    }).start(onSwipeRight);
+                    }).start(() => propsRef.current.onSwipeRight());
                 } else if (gesture.dx < -SWIPE_THRESHOLD) {
                     Animated.spring(position, {
                         toValue: { x: -width - 100, y: gesture.dy },
                         useNativeDriver: true,
-                    }).start(onSwipeLeft);
+                    }).start(() => propsRef.current.onSwipeLeft());
                 } else if (gesture.dy < -120) {
                     Animated.spring(position, {
                         toValue: { x: 0, y: -height },
                         useNativeDriver: true,
-                    }).start(onSuperLike);
+                    }).start(() => propsRef.current.onSuperLike());
                 } else {
                     Animated.spring(position, {
                         toValue: { x: 0, y: 0 },

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #0A0A1A; /* BandLinkのダーク背景に近づける */
+            color: #E2E8F0;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #13102F; /* BandLinkのカード等の背景 */
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            border: 1px solid #1E1B3B;
+        }
+        .header {
+            background-image: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%); /* primary to secondary */
+            padding: 40px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .content {
+            padding: 40px 30px;
+            color: #CBD5E1;
+        }
+        .content h2 {
+            color: #F8FAFC;
+            font-size: 22px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        .button-container {
+            text-align: center;
+            margin: 35px 0;
+        }
+        .button {
+            display: inline-block;
+            background-image: linear-gradient(135deg, #8B5CF6 0%, #3B82F6 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            padding: 14px 32px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .note {
+            font-size: 13px;
+            color: #64748B;
+            border-top: 1px solid #1E1B3B;
+            padding-top: 20px;
+            margin-top: 30px;
+        }
+        .footer {
+            background-color: #0b0920;
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #64748B;
+        }
+        .footer a {
+            color: #8B5CF6;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ヘッダー部分 -->
+        <div class="header">
+            <h1>BandLink</h1>
+        </div>
+        
+        <!-- コンテンツ部分 -->
+        <div class="content">
+            <h2>メールアドレスの確認</h2>
+            <p>ご登録ありがとうございます。<br>
+               新しい音楽仲間を見つける旅まで、あと一歩です。</p>
+            
+            <p>以下のボタンをタップして、メールアドレスを認証し、BandLinkのすべての機能を解放してください。</p>
+
+            <!-- 認証ボタン -->
+            <div class="button-container">
+                <a href="{{ .ConfirmationURL }}" class="button">アカウントを有効化する</a>
+            </div>
+
+            <!-- 注意書き -->
+            <div class="note">
+                <p>⚠️ ボタンが機能しない場合は、以下のリンクをブラウザのアドレスバーにコピー＆ペーストしてください：<br>
+                <span style="color: #8B5CF6; word-break: break-all;">{{ .ConfirmationURL }}</span></p>
+                <p>※ このメールに心当たりがない場合は、第三者が誤って入力した可能性があります。その場合はメールを破棄していただいて構いません。</p>
+            </div>
+        </div>
+
+        <!-- フッター部分 -->
+        <div class="footer">
+            <p>BandLink - 最高の音楽を通じた出会いを</p>
+            <p>Tokyo, Japan | <a href="#">App Storeで開く</a></p>
+        </div>
+    </div>
+</body>
+</html>

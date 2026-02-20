@@ -79,6 +79,29 @@ export default function LoginScreen() {
         }
     };
 
+    const handleAppleLogin = async () => {
+        setIsLoading(true);
+        try {
+            await authService.signInWithApple();
+            // OAuth redirction might handle state, but if it returns seamlessly:
+        } catch (error: any) {
+            setErrors({ general: 'Appleでのログインに失敗しました。' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        setIsLoading(true);
+        try {
+            await authService.signInWithGoogle();
+        } catch (error: any) {
+            setErrors({ general: 'Googleでのログインに失敗しました。' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <KeyboardAvoidingView
             style={styles.container}
@@ -216,12 +239,22 @@ export default function LoginScreen() {
                 </View>
 
                 {/* Social login */}
-                <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
+                <TouchableOpacity
+                    style={styles.socialButton}
+                    activeOpacity={0.7}
+                    onPress={handleAppleLogin}
+                    disabled={isLoading}
+                >
                     <Ionicons name="logo-apple" size={22} color={Colors.text} />
                     <Text style={styles.socialButtonText}>Appleでログイン</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
+                <TouchableOpacity
+                    style={styles.socialButton}
+                    activeOpacity={0.7}
+                    onPress={handleGoogleLogin}
+                    disabled={isLoading}
+                >
                     <Ionicons name="logo-google" size={20} color={Colors.text} />
                     <Text style={styles.socialButtonText}>Googleでログイン</Text>
                 </TouchableOpacity>

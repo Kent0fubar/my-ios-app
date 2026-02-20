@@ -135,7 +135,7 @@ export default function ProfileScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>プロフィール</Text>
-                    <TouchableOpacity style={styles.settingsButton}>
+                    <TouchableOpacity style={styles.settingsButton} onPress={() => router.push('/profile/edit')}>
                         <Ionicons name="settings-outline" size={24} color={Colors.textSecondary} />
                     </TouchableOpacity>
                 </View>
@@ -231,7 +231,7 @@ export default function ProfileScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>自己紹介</Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => router.push('/profile/edit')}>
                             <Ionicons name="pencil" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
