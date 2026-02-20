@@ -3,13 +3,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Database } from '../types/database';
 
 // Supabase の設定
-// ⚠️ 本番環境では環境変数から読み込んでください
-// Supabase ダッシュボードの Project Settings > API から取得
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zgwsacshtooqthlsnplw.supabase.co';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpnd3NhY3NodG9vcXRobHNucGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1MDcxNzUsImV4cCI6MjA4NzA4MzE3NX0.H9x5ISv-pP-zyBqS9WDLLfr0OwhgIdEaGirTNHP6GV0';
+// 環境変数から読み込みます (.env などを利用)
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    if (process.env.APP_ENV === 'production') {
+        throw new Error('Missing Supabase Environment Variables in Production');
+    } else {
+        console.warn('⚠️ Environment Variables not found. Check your .env setup.');
+    }
+}
+
+const supabaseUrlStr = SUPABASE_URL || 'https://zgwsacshtooqthlsnplw.supabase.co';
+const supabaseAnonStr = SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpnd3NhY3NodG9vcXRobHNucGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1MDcxNzUsImV4cCI6MjA4NzA4MzE3NX0.H9x5ISv-pP-zyBqS9WDLLfr0OwhgIdEaGirTNHP6GV0';
 
 // 型定義の不整合によるビルドエラーを回避するため一時的にanyを使用
-export const supabase = createClient<any>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient<any>(supabaseUrlStr, supabaseAnonStr, {
     auth: {
         storage: AsyncStorage,
         autoRefreshToken: true,
