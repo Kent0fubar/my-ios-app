@@ -51,6 +51,15 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
+      # 5.5. EAS プロジェクトの初期化（未設定の場合）
+      - name: Configure EAS project
+        run: |
+          if [ -z "$(grep -o 'projectId' app.json)" ]; then
+            eas init --non-interactive
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
       # 6. ビルドプロファイルの決定
       #    - main ブランチ → production
       #    - develop ブランチ / PR → preview
