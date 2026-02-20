@@ -7,11 +7,13 @@ export interface UserProfile {
     bio: string;
     instruments: string[];
     genres: string[];
+    tags: string[];
     skillLevel: 'beginner' | 'intermediate' | 'advanced' | 'professional';
     lookingFor: string[];
     imageUrl: string;
     audioClipUrl?: string;
     distance: number; // km
+    matchScore?: number; // タグマッチ度（0〜100）
     isVerified: boolean;
     isPremium: boolean;
 }
@@ -56,6 +58,26 @@ export const SKILL_LEVELS = [
     { id: 'professional', label: 'プロ', description: 'プロ活動経験あり', icon: '⭐' },
 ];
 
+// マッチング用タグ（自由にプロフィールに追加可能）
+export const TAGS = [
+    { id: 'live_active', label: 'ライブ活動中', icon: '🎤', color: '#EF4444' },
+    { id: 'dtm', label: 'DTM/宅録', icon: '💻', color: '#3B82F6' },
+    { id: 'original', label: 'オリジナル曲志向', icon: '✨', color: '#F59E0B' },
+    { id: 'cover', label: 'カバー中心', icon: '🎶', color: '#10B981' },
+    { id: 'weekday_ok', label: '平日練習OK', icon: '📅', color: '#8B5CF6' },
+    { id: 'weekend_only', label: '週末のみ', icon: '🗓️', color: '#06B6D4' },
+    { id: 'studio_owner', label: 'スタジオ持ち', icon: '🏠', color: '#EC4899' },
+    { id: 'beginner_welcome', label: '初心者歓迎', icon: '🌱', color: '#22C55E' },
+    { id: 'pro_oriented', label: 'プロ志向', icon: '🔥', color: '#F97316' },
+    { id: 'casual', label: 'ゆるく楽しみたい', icon: '☕', color: '#A78BFA' },
+    { id: 'theory_lover', label: '音楽理論好き', icon: '📖', color: '#6366F1' },
+    { id: 'improv', label: 'アドリブ好き', icon: '🎲', color: '#14B8A6' },
+    { id: 'recording', label: 'レコーディング対応', icon: '🎙️', color: '#E11D48' },
+    { id: 'teaching', label: '教えるの好き', icon: '📚', color: '#0EA5E9' },
+    { id: 'compose', label: '作曲できる', icon: '🎼', color: '#D946EF' },
+    { id: 'lyrics', label: '作詞できる', icon: '✍️', color: '#F43F5E' },
+];
+
 export const LOOKING_FOR = [
     { id: 'band', label: 'バンドメンバー', icon: '🎸' },
     { id: 'session', label: 'セッション仲間', icon: '🎵' },
@@ -75,6 +97,7 @@ export const MOCK_USERS: UserProfile[] = [
         bio: 'ロックバンドのギタリストを探しています！一緒にライブハウスを盛り上げましょう🎸 影響を受けたアーティスト: ONE OK ROCK, RADWIMPS',
         instruments: ['guitar', 'vocal'],
         genres: ['rock', 'pop', 'indie'],
+        tags: ['live_active', 'original', 'weekend_only'],
         skillLevel: 'advanced',
         lookingFor: ['band', 'session'],
         imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop',
@@ -90,6 +113,7 @@ export const MOCK_USERS: UserProfile[] = [
         bio: 'ジャズピアニスト🎹 セッション大好き！気軽に誘ってください✨ 週末はよく新宿のジャズバーに出没してます',
         instruments: ['piano', 'keyboard'],
         genres: ['jazz', 'rnb', 'classical'],
+        tags: ['improv', 'theory_lover', 'casual', 'weekday_ok'],
         skillLevel: 'professional',
         lookingFor: ['session', 'collaboration'],
         imageUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=600&fit=crop',
@@ -105,6 +129,7 @@ export const MOCK_USERS: UserProfile[] = [
         bio: 'ドラマー歴10年！ロック・メタルが得意ですが、ジャンル問わずセッションしたいです🥁 スタジオの予約も任せてください',
         instruments: ['drums'],
         genres: ['rock', 'metal', 'punk', 'funk'],
+        tags: ['live_active', 'pro_oriented', 'weekday_ok'],
         skillLevel: 'advanced',
         lookingFor: ['band', 'session'],
         imageUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=600&fit=crop',
@@ -120,6 +145,7 @@ export const MOCK_USERS: UserProfile[] = [
         bio: 'シンガーソングライター🎤 オリジナル曲を一緒に作ってくれる人を探しています♪ アコースティックからエレクトロまで幅広く',
         instruments: ['vocal', 'guitar', 'songwriter'],
         genres: ['pop', 'folk', 'indie'],
+        tags: ['original', 'compose', 'lyrics', 'casual'],
         skillLevel: 'intermediate',
         lookingFor: ['collaboration', 'songwriter', 'band'],
         imageUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=600&fit=crop',
@@ -135,6 +161,7 @@ export const MOCK_USERS: UserProfile[] = [
         bio: 'ベーシスト兼プロデューサー🎛️ DTMも得意です。一緒にかっこいい音楽を作りましょう！ 自宅スタジオあります',
         instruments: ['bass', 'producer'],
         genres: ['electronic', 'hiphop', 'rnb', 'funk'],
+        tags: ['dtm', 'studio_owner', 'recording', 'pro_oriented'],
         skillLevel: 'professional',
         lookingFor: ['collaboration', 'producer'],
         imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=600&fit=crop',
@@ -150,6 +177,7 @@ export const MOCK_USERS: UserProfile[] = [
         bio: 'サックス吹きです🎷 ジャズ・ファンクが大好き！ 週末のライブやセッションに参加できるバンドメンバーを募集中',
         instruments: ['saxophone'],
         genres: ['jazz', 'funk', 'blues'],
+        tags: ['live_active', 'improv', 'weekend_only', 'beginner_welcome'],
         skillLevel: 'advanced',
         lookingFor: ['band', 'session'],
         imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=600&fit=crop',

@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
-import { INSTRUMENTS, GENRES, SKILL_LEVELS } from '../../src/data/mockData';
+import { INSTRUMENTS, GENRES, SKILL_LEVELS, TAGS } from '../../src/data/mockData';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { authService } from '../../src/services/authService';
 
@@ -36,6 +36,7 @@ export default function ProfileScreen() {
         skillLevel: (profile?.skill_level || 'beginner') as 'beginner' | 'intermediate' | 'advanced' | 'professional',
         imageUrl: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
         isPremium: profile?.is_premium || false,
+        tags: (profile as any)?.tags || [],
     };
 
     const handleLogout = () => {
@@ -63,6 +64,9 @@ export default function ProfileScreen() {
         .map((id) => GENRES.find((g) => g.id === id))
         .filter(Boolean);
     const skillLevel = SKILL_LEVELS.find((s) => s.id === displayProfile.skillLevel);
+    const userTags = displayProfile.tags
+        .map((id: string) => TAGS.find((t) => t.id === id))
+        .filter(Boolean);
 
     return (
         <View style={styles.container}>
@@ -219,6 +223,35 @@ export default function ProfileScreen() {
                             </View>
                         ))}
                     </View>
+                </View>
+
+                {/* Tags */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>マッチングタグ</Text>
+                        <TouchableOpacity>
+                            <Ionicons name="pencil" size={16} color={Colors.primary} />
+                        </TouchableOpacity>
+                    </View>
+                    {userTags.length > 0 ? (
+                        <View style={styles.tagRow}>
+                            {userTags.map((tag: any) => (
+                                <View
+                                    key={tag.id}
+                                    style={[styles.matchTag, { backgroundColor: tag.color + '20', borderColor: tag.color + '40' }]}
+                                >
+                                    <Text style={styles.tagEmoji}>{tag.icon}</Text>
+                                    <Text style={[styles.tagLabel, { color: tag.color }]}>
+                                        {tag.label}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                    ) : (
+                        <Text style={styles.emptyTagText}>
+                            タグを追加すると、同じタグを持つユーザーとマッチしやすくなります
+                        </Text>
+                    )}
                 </View>
 
                 {/* Skill Level */}
@@ -526,5 +559,19 @@ const styles = StyleSheet.create({
         fontSize: FontSize.xs,
         color: Colors.textTertiary,
         marginTop: Spacing.xl,
+    },
+    matchTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+    },
+    emptyTagText: {
+        fontSize: FontSize.sm,
+        color: Colors.textTertiary,
+        fontStyle: 'italic',
     },
 });

@@ -117,6 +117,7 @@ export const discoveryService = {
     /**
      * ディスカバリー用のユーザー一覧を取得
      * - 既にスワイプ済みのユーザーを除外
+     * - タグマッチングスコアで優先度ソート
      * - 位置情報でフィルタリング（オプション）
      */
     async getDiscoverUsers(
@@ -128,10 +129,21 @@ export const discoveryService = {
             genres?: string[];
             instruments?: string[];
         }
-    ): Promise<Profile[]> {
+    ): Promise<(Profile & { matchScore?: number })[]> {
         return withRateLimit('search', myUserId, async () => {
             // SQLインジェクション防止: myUserIdのUUID形式を検証
             validateUUID(myUserId, 'ユーザーID');
+
+            // 自分のプロフィールを取得（タグマッチング計算用）
+            const { data: myProfile } = await supabase
+                .from('profiles')
+                .select('tags, genres, instruments')
+                .eq('id', myUserId)
+                .single();
+
+            const myTags: string[] = (myProfile as any)?.tags || [];
+            const myGenres: string[] = (myProfile as any)?.genres || [];
+            const myInstruments: string[] = (myProfile as any)?.instruments || [];
 
             // 既にスワイプしたユーザーIDを取得
             const { data: swipedData } = await supabase
@@ -144,20 +156,16 @@ export const discoveryService = {
                 .filter((id): id is string => typeof id === 'string' && UUID_REGEX.test(id));
             const excludeIds = [myUserId, ...swipedIds];
 
-            // 安全なフィルタリング: 各IDがUUID形式であることを確認済み
-            // excludeIdsは全て検証済みUUIDのみ
             let query = supabase
                 .from('profiles')
                 .select('*')
                 .not('id', 'in', `(${excludeIds.join(',')})`)
                 .limit(20);
 
-            // ジャンルフィルター
             if (options?.genres && options.genres.length > 0) {
                 query = query.overlaps('genres', options.genres);
             }
 
-            // 楽器フィルター
             if (options?.instruments && options.instruments.length > 0) {
                 query = query.overlaps('instruments', options.instruments);
             }
@@ -165,25 +173,52 @@ export const discoveryService = {
             const { data, error } = await query;
             if (error) throw error;
 
-            // 位置情報がある場合は距離でソート（アプリ側で計算）
-            if (options?.latitude && options?.longitude && data) {
-                return data
-                    .map((profile) => ({
-                        ...profile,
-                        distance: profile.latitude && profile.longitude
-                            ? calculateDistance(
-                                options.latitude!, options.longitude!,
-                                profile.latitude, profile.longitude
-                            )
-                            : 9999,
-                    }))
-                    .filter((p: any) => !options.radiusKm || p.distance <= options.radiusKm)
-                    .sort((a: any, b: any) => a.distance - b.distance) as any;
-            }
+            if (!data) return [];
 
-            return data || [];
+            // タグマッチングスコアを計算してソート
+            const scoredUsers = data.map((profile) => {
+                const theirTags: string[] = (profile as any).tags || [];
+                const theirGenres: string[] = profile.genres || [];
+                const theirInstruments: string[] = profile.instruments || [];
+
+                const tagOverlap = myTags.filter(t => theirTags.includes(t)).length;
+                const genreOverlap = myGenres.filter(g => theirGenres.includes(g)).length;
+                const instrumentOverlap = myInstruments.filter(i => theirInstruments.includes(i)).length;
+
+                const maxTags = Math.max(myTags.length, theirTags.length, 1);
+                const maxGenres = Math.max(myGenres.length, theirGenres.length, 1);
+                const maxInstruments = Math.max(myInstruments.length, theirInstruments.length, 1);
+
+                // スコア: タグ一致50% + ジャンル一致30% + 楽器一致20%
+                const tagScore = (tagOverlap / maxTags) * 50;
+                const genreScore = (genreOverlap / maxGenres) * 30;
+                const instrumentScore = (instrumentOverlap / maxInstruments) * 20;
+                const matchScore = Math.round(tagScore + genreScore + instrumentScore);
+
+                let distance = 9999;
+                if (options?.latitude && options?.longitude && profile.latitude && profile.longitude) {
+                    distance = calculateDistance(
+                        options.latitude, options.longitude,
+                        profile.latitude, profile.longitude
+                    );
+                }
+
+                return { ...profile, matchScore, distance };
+            });
+
+            const filtered = options?.radiusKm
+                ? scoredUsers.filter((p: any) => p.distance <= options.radiusKm!)
+                : scoredUsers;
+
+            // マッチスコア降順（同スコアなら距離昇順）
+            return filtered.sort((a: any, b: any) => {
+                if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+                return a.distance - b.distance;
+            }) as any;
         });
     },
+
+
 
     /**
      * スワイプ（LIKE/NOPE/SUPERLIKE）

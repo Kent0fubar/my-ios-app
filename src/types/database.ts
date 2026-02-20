@@ -23,6 +23,7 @@ export interface Database {
                     genres: string[] | null
                     skill_level: 'beginner' | 'intermediate' | 'advanced' | 'professional' | null
                     looking_for: string[] | null
+                    tags: string[] | null
                     avatar_url: string | null
                     audio_clip_url: string | null
                     is_premium: boolean | null
@@ -43,6 +44,7 @@ export interface Database {
                     genres?: string[] | null
                     skill_level?: 'beginner' | 'intermediate' | 'advanced' | 'professional' | null
                     looking_for?: string[] | null
+                    tags?: string[] | null
                     avatar_url?: string | null
                     audio_clip_url?: string | null
                     is_premium?: boolean | null
@@ -63,6 +65,7 @@ export interface Database {
                     genres?: string[] | null
                     skill_level?: 'beginner' | 'intermediate' | 'advanced' | 'professional' | null
                     looking_for?: string[] | null
+                    tags?: string[] | null
                     avatar_url?: string | null
                     audio_clip_url?: string | null
                     is_premium?: boolean | null

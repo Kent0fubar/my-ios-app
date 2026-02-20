@@ -21,6 +21,7 @@ CREATE TABLE public.profiles (
   genres TEXT[] DEFAULT '{}',
   skill_level TEXT DEFAULT 'beginner' CHECK (skill_level IN ('beginner', 'intermediate', 'advanced', 'professional')),
   looking_for TEXT[] DEFAULT '{}',
+  tags TEXT[] DEFAULT '{}',
   avatar_url TEXT,
   audio_clip_url TEXT,
   is_premium BOOLEAN DEFAULT FALSE,

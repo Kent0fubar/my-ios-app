@@ -151,6 +151,17 @@ function SwipeCard({
                 </View>
             )}
 
+            {/* Match Score Badge */}
+            {user.matchScore !== undefined && user.matchScore > 0 && (
+                <View style={[
+                    styles.matchScoreBadge,
+                    { backgroundColor: user.matchScore >= 60 ? 'rgba(6,214,160,0.9)' : user.matchScore >= 30 ? 'rgba(249,115,22,0.9)' : 'rgba(100,116,139,0.8)' }
+                ]}>
+                    <Ionicons name="sparkles" size={12} color="#fff" />
+                    <Text style={styles.matchScoreText}>{user.matchScore}%</Text>
+                </View>
+            )}
+
             {/* Card content */}
             <View style={styles.cardContent}>
                 {/* Name & Age */}
@@ -615,5 +626,21 @@ const styles = StyleSheet.create({
         color: Colors.text,
         fontSize: FontSize.md,
         fontWeight: '700',
+    },
+    matchScoreBadge: {
+        position: 'absolute',
+        top: 16,
+        left: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: BorderRadius.full,
+    },
+    matchScoreText: {
+        color: '#fff',
+        fontSize: FontSize.sm,
+        fontWeight: '800',
     },
 });
