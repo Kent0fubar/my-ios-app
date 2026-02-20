@@ -145,10 +145,6 @@ export function validateName(name: string): ValidationResult {
         return { isValid: false, error: '名前を入力してください' };
     }
 
-    if (name.trim().length < 1) {
-        return { isValid: false, error: '名前は1文字以上にしてください' };
-    }
-
     if (name.trim().length > 50) {
         return { isValid: false, error: '名前は50文字以内にしてください' };
     }
