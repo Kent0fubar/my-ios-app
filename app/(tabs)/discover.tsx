@@ -176,7 +176,7 @@ function SwipeCard({
                     </View>
 
                     <View style={styles.locationRow}>
-                        <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
+                        <Ionicons name="location-outline" size={14} color={Colors.text} />
                         <Text style={styles.locationText}>
                             {user.location || '不明'} {user.distance !== undefined ? `• ${user.distance.toFixed(1)}km` : ''}
                         </Text>
@@ -608,11 +608,17 @@ const styles = StyleSheet.create({
     locationRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 6,
+        alignSelf: 'flex-start',
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: BorderRadius.full,
     },
     locationText: {
         fontSize: FontSize.sm,
-        color: Colors.textSecondary,
+        fontWeight: '600',
+        color: Colors.text,
     },
     skillBadge: {
         flexDirection: 'row',
