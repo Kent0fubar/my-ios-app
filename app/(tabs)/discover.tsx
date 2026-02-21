@@ -177,7 +177,7 @@ function SwipeCard({
                     <View style={styles.locationRow}>
                         <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
                         <Text style={styles.locationText}>
-                            {user.location || '不明'} {user.distance ? `• ${user.distance.toFixed(1)}km` : ''}
+                            {user.location || '不明'} {user.distance !== undefined ? `• ${user.distance.toFixed(1)}km` : ''}
                         </Text>
                     </View>
 

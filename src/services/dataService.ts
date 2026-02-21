@@ -202,7 +202,7 @@ export const discoveryService = {
                     (instrumentOverlap / maxInstruments) * 15
                 );
 
-                let distance = 9999;
+                let distance: number | undefined = undefined;
                 if (options?.latitude && options?.longitude && profile.latitude && profile.longitude) {
                     distance = locationService.calculateDistance(
                         options.latitude, options.longitude,
@@ -214,7 +214,7 @@ export const discoveryService = {
             });
 
             const filtered = options?.radiusKm
-                ? scoredUsers.filter((p) => p.distance <= options.radiusKm!)
+                ? scoredUsers.filter((p) => p.distance !== undefined && p.distance <= options.radiusKm!)
                 : scoredUsers;
 
             // マッチスコア降順（同スコアなら距離昇順）
