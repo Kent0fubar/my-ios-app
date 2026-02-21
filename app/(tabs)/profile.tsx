@@ -231,7 +231,7 @@ export default function ProfileScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>自己紹介</Text>
-                        <TouchableOpacity onPress={() => router.push('/profile/edit')}>
+                        <TouchableOpacity onPress={() => router.push('/profile/edit-bio')}>
                             <Ionicons name="pencil" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
