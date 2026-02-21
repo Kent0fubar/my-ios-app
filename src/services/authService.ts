@@ -15,8 +15,10 @@ try {
         // but here we just want to ensure it's not loaded at top level in Expo Go if possible.
     }
 } catch (e) { }
+// We remove the static import of GoogleSignin to avoid conflict with the dynamic 'let GoogleSignin' later.
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { log } from '../lib/logger';
 
 // 開発環境（Expo Go）かネイティブアプリかを判定
 let isExpoGo = Constants.executionEnvironment === 'storeClient';
@@ -32,7 +34,7 @@ if (isNative) {
             iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
         });
     } catch (e) {
-        console.warn('[Auth] GoogleSignin initialization failed:', e);
+        log.error('[Auth] GoogleSignin initialization failed:', e);
         isNative = false; // Fallback to OAuth
     }
 }
@@ -57,8 +59,8 @@ const performOAuth = async (provider: 'apple' | 'google') => {
 
     if (data?.url) {
         if (__DEV__) {
-            console.log('[OAuth] Attempting to open URL:', data.url);
-            console.log('[OAuth] Redirect URL set as:', redirectUrl);
+            log.info('[OAuth] Attempting to open URL:', data.url);
+            log.info('[OAuth] Redirect URL set as:', redirectUrl);
         }
 
         // ユーザーにブラウザが開くことを通知（無反応に見えるのを防ぐ）
@@ -156,7 +158,7 @@ export const authService = {
     async signInWithApple() {
         const isNativeIos = Platform.OS === 'ios' && !isExpoGo;
 
-        console.log('[Auth] signInWithApple - Environment:', { isExpoGo, isNativeIos });
+        log.info(`[Auth] signInWithApple - Environment: isExpoGo=${isExpoGo}, isNativeIos=${isNativeIos}`);
 
         if (isNativeIos) {
             try {
@@ -178,20 +180,20 @@ export const authService = {
                         return data.session;
                     }
                 } else {
-                    console.log('[Auth] Apple Sign-In is not available on this device.');
+                    log.warn('[Auth] Apple Sign-In is not available on this device.');
                 }
             } catch (e: any) {
                 if (e.code === 'ERR_CANCELED') {
-                    console.log('[Auth] Native Apple Auth cancelled by user.');
+                    log.info('[Auth] Native Apple Auth cancelled by user.');
                     return null; // ユーザーキャンセル
                 }
-                console.warn('[Auth] Native Apple Auth failed:', e.message);
+                log.error('[Auth] Native Apple Auth failed:', e);
                 // 失敗した場合は OAuth へフォールバック
             }
         }
 
         // Expo Go またはネイティブ失敗時はブラウザでの OAuth フロー
-        console.log('[Auth] Falling back to OAuth for Apple');
+        log.info('[Auth] Falling back to OAuth for Apple');
         return performOAuth('apple');
     },
 
@@ -200,7 +202,7 @@ export const authService = {
      */
     async signInWithGoogle() {
 
-        console.log('[Auth] signInWithGoogle - Environment:', { isExpoGo, isNative });
+        log.info(`[Auth] signInWithGoogle - Environment: isExpoGo=${isExpoGo}, isNative=${isNative}`);
 
         if (isNative) {
             try {
@@ -215,22 +217,22 @@ export const authService = {
                     if (error) throw error;
                     return data.session;
                 } else if (userInfo.type === 'cancelled') {
-                    console.log('[Auth] Native Google Sign-In cancelled.');
+                    log.info('[Auth] Native Google Sign-In cancelled.');
                     return null;
                 } else {
                     throw new Error('Google ID Token not found or sign-in failed.');
                 }
             } catch (e: any) {
                 if (e.code === '7') { // GoogleSignin.SIGN_IN_CANCELLED
-                    console.log('[Auth] Native Google Sign-In cancelled by user.');
+                    log.info('[Auth] Native Google Sign-In cancelled by user.');
                     return null; // Cancel
                 }
-                console.warn('[Auth] Native Google Sign-In failed:', e.message);
+                log.error('[Auth] Native Google Sign-In failed:', e);
             }
         }
 
         // Expo Go またはネイティブ失敗時はブラウザでの OAuth フロー
-        console.log('[Auth] Falling back to OAuth for Google');
+        log.info('[Auth] Falling back to OAuth for Google');
         return performOAuth('google');
     },
 

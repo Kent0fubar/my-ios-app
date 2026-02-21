@@ -28,7 +28,8 @@ import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { discoveryService } from '../../src/services/dataService';
 import { Profile } from '../../src/types/database';
-import { Modal } from 'react-native';
+import { Modal, Alert } from 'react-native';
+import { log } from '../../src/lib/logger';
 
 const { width, height } = Dimensions.get('window');
 const SWIPE_THRESHOLD = width * 0.45;
@@ -68,18 +69,18 @@ function SwipeCard({
         .onEnd((event) => {
             if (event.translationX > SWIPE_THRESHOLD || event.velocityX > 800) {
                 // LIKE
-                translateX.value = withSpring(width * 1.5, SPRING_CONFIG, () => {
-                    runOnJS(onSwipeRight)();
+                translateX.value = withSpring(width * 1.5, SPRING_CONFIG, (finished) => {
+                    if (finished) runOnJS(onSwipeRight)();
                 });
             } else if (event.translationX < -SWIPE_THRESHOLD || event.velocityX < -800) {
                 // NOPE
-                translateX.value = withSpring(-width * 1.5, SPRING_CONFIG, () => {
-                    runOnJS(onSwipeLeft)();
+                translateX.value = withSpring(-width * 1.5, SPRING_CONFIG, (finished) => {
+                    if (finished) runOnJS(onSwipeLeft)();
                 });
             } else if (event.translationY < -150 || event.velocityY < -1000) {
                 // SUPER LIKE
-                translateY.value = withSpring(-height, SPRING_CONFIG, () => {
-                    runOnJS(onSuperLike)();
+                translateY.value = withSpring(-height, SPRING_CONFIG, (finished) => {
+                    if (finished) runOnJS(onSuperLike)();
                 });
             } else {
                 // Reset
@@ -241,6 +242,8 @@ export default function DiscoverScreen() {
         const swipedUser = discoverUsers[currentIndex];
         setCurrentIndex((prev) => prev + 1);
 
+        log.info(`[Discover] Swipe Target -> swiper_id: ${currentUser.id}, swiped_id: ${swipedUser.id}, direction: ${direction}`);
+
         try {
             const result = await discoveryService.swipe(
                 currentUser.id,
@@ -255,8 +258,17 @@ export default function DiscoverScreen() {
                     opponent: swipedUser
                 });
             }
-        } catch (error) {
-            console.error('[Discover] Swipe error:', error);
+        } catch (error: any) {
+            log.error('[Discover] Swipe error:', error);
+            // エラーの種類に応じてアラート表示
+            const isSupabaseError = error?.code || error?.message?.includes('violates');
+            Alert.alert(
+                'スワイプエラー',
+                isSupabaseError
+                    ? `データベースのアクセス制限、または既存のスワイプデータとの競合が発生しました。\n詳細: ${error?.message || error?.code}`
+                    : `エラーが発生しました。\n詳細: ${error?.message || '不明なエラー'}`
+            );
+            // 失敗時はカードの位置を戻す等の処理が必要になる場合がありますが、現状はそのまま
         }
     }, [currentUser, discoverUsers, currentIndex, myProfile]);
 
