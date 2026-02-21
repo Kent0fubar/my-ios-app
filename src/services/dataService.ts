@@ -310,9 +310,9 @@ export const discoveryService = {
 // ============================================================
 export const matchService = {
     /**
-     * マッチ一覧を取得（最新メッセージ付き）
+     * マッチ一覧を取得（最新メッセージ・未読件数付き）
      */
-    async getMatches(userId: string): Promise<(Match & { otherProfile: Profile; lastMessage?: Message })[]> {
+    async getMatches(userId: string): Promise<(Match & { otherProfile: Profile; lastMessage?: Message; unreadCount?: number })[]> {
         validateUUID(userId, 'ユーザーID');
 
         // マッチとプロフィールを取得
@@ -329,19 +329,27 @@ export const matchService = {
         if (matchesError) throw matchesError;
         if (!matchesData) return [];
 
-        // 各マッチの最新メッセージを取得（まとめて取得するのは複雑なため、Promise.allで個別取得）
+        // 各マッチの最新メッセージと未読件数を取得
         const matchesWithMessages = await Promise.all(matchesData.map(async (match: any) => {
-            const { data: messages, error: msgError } = await supabase
+            const { data: messages } = await supabase
                 .from('messages')
                 .select('*')
                 .eq('match_id', match.id)
                 .order('created_at', { ascending: false })
                 .limit(1);
 
+            const { count: unreadCount } = await supabase
+                .from('messages')
+                .select('id', { count: 'exact', head: true })
+                .eq('match_id', match.id)
+                .neq('sender_id', userId)
+                .is('read_at', null);
+
             return {
                 ...match,
                 otherProfile: match.user1_id === userId ? match.profile2 : match.profile1,
-                lastMessage: messages && messages.length > 0 ? messages[0] : undefined
+                lastMessage: messages && messages.length > 0 ? messages[0] : undefined,
+                unreadCount: unreadCount || 0
             };
         }));
 

@@ -59,6 +59,9 @@ export default function ChatScreen() {
                 // 過去のメッセージを取得
                 const loadedMessages = await messageService.getMessages(match.id);
 
+                // 自分が受信者となっている全メッセージを既読にする
+                await messageService.markAsRead(match.id, currentUser.id);
+
                 // UI用にフォーマット変換
                 const formattedMessages: Message[] = loadedMessages.map(m => ({
                     id: m.id,
@@ -80,6 +83,9 @@ export default function ChatScreen() {
                             sender: 'other',
                             timestamp: new Date(newMsg.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
                         }]);
+
+                        // 開いている間に届いたメッセージも即座に既読扱いにする
+                        messageService.markAsRead(match.id, currentUser.id);
 
                         setTimeout(() => {
                             flatListRef.current?.scrollToEnd({ animated: true });

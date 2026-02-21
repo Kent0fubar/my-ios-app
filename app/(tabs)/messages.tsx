@@ -123,7 +123,7 @@ export default function MessagesScreen() {
                     ) : (
                         activeMatches.map((match, index) => {
                             const profile = match.otherProfile;
-                            const unreadCount = match.lastMessage && match.lastMessage.sender_id !== user?.id && !match.lastMessage.read_at ? 1 : 0;
+                            const unreadCount = match.unreadCount || 0;
 
                             // 簡易的な時間表示
                             const time = match.lastMessage ? new Date(match.lastMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
