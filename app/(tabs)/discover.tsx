@@ -31,6 +31,7 @@ import { locationService } from '../../src/services/locationService';
 import { Profile } from '../../src/types/database';
 import { Modal, Alert } from 'react-native';
 import { log } from '../../src/lib/logger';
+import { INSTRUMENTS, GENRES } from '../../src/data/mockData';
 
 const { width, height } = Dimensions.get('window');
 const SWIPE_THRESHOLD = width * 0.45;
@@ -169,7 +170,11 @@ function SwipeCard({
                 <View style={styles.cardContent}>
                     <View style={styles.nameRow}>
                         <Text style={styles.userName}>{user.name}</Text>
-                        <Text style={styles.userAge}>{user.age ? `, ${user.age}` : ''}</Text>
+                        {user.age && (
+                            <View style={styles.ageBadge}>
+                                <Text style={styles.userAge}>{user.age}</Text>
+                            </View>
+                        )}
                         {user.is_verified && (
                             <Ionicons name="checkmark-circle" size={20} color={Colors.accent} />
                         )}
@@ -189,15 +194,30 @@ function SwipeCard({
                     )}
 
                     <View style={styles.tagRow}>
-                        {user.instruments?.slice(0, 3).map((inst) => (
-                            <InstrumentTag key={inst} icon="music" label={inst} />
-                        ))}
+                        {user.instruments?.slice(0, 3).map((instIdOrLabel) => {
+                            const instData = INSTRUMENTS.find(i => i.id === instIdOrLabel || i.label === instIdOrLabel);
+                            return (
+                                <InstrumentTag
+                                    key={instIdOrLabel}
+                                    icon={instData?.icon || 'custom'}
+                                    label={instData?.label || instIdOrLabel}
+                                />
+                            );
+                        })}
                     </View>
 
                     <View style={styles.tagRow}>
-                        {user.genres?.slice(0, 4).map((genre) => (
-                            <GenreTag key={genre} label={genre} color={Colors.primary} opacity="30" />
-                        ))}
+                        {user.genres?.slice(0, 4).map((genreIdOrLabel) => {
+                            const genreData = GENRES.find(g => g.id === genreIdOrLabel || g.label === genreIdOrLabel);
+                            return (
+                                <GenreTag
+                                    key={genreIdOrLabel}
+                                    label={genreData?.label || genreIdOrLabel}
+                                    color={genreData?.color || Colors.primary}
+                                    opacity="30"
+                                />
+                            );
+                        })}
                     </View>
 
                     <Text style={styles.bio} numberOfLines={2}>
@@ -600,10 +620,18 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: Colors.text,
     },
+    ageBadge: {
+        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        paddingHorizontal: 10,
+        paddingVertical: 2,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
     userAge: {
-        fontSize: FontSize.xl,
-        fontWeight: '400',
-        color: Colors.textSecondary,
+        fontSize: FontSize.lg,
+        fontWeight: '800',
+        color: Colors.text,
     },
     locationRow: {
         flexDirection: 'row',

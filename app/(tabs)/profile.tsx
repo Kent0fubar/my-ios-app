@@ -130,7 +130,8 @@ export default function ProfileScreen() {
     const userInstruments = Array.from(new Set(profile?.instruments || []))
         .map((idOrLabel) =>
             INSTRUMENTS.find((i) => i.id === idOrLabel) ||
-            INSTRUMENTS.find((i) => i.label === idOrLabel)
+            INSTRUMENTS.find((i) => i.label === idOrLabel) ||
+            { id: idOrLabel, label: idOrLabel, icon: 'custom' }
         )
         .filter(Boolean);
     const userGenres = Array.from(new Set(profile?.genres || []))

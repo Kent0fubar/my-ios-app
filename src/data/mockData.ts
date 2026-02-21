@@ -18,21 +18,19 @@ export interface UserProfile {
     isPremium: boolean;
 }
 
-const STORAGE_URL = 'https://zgwsacshtooqthlsnplw.supabase.co/storage/v1/object/public/instruments';
-
 export const INSTRUMENTS = [
-    { id: 'guitar', label: 'ギター', icon: `${STORAGE_URL}/guitar.png` },
-    { id: 'bass', label: 'ベース', icon: `${STORAGE_URL}/bass.png` },
-    { id: 'drums', label: 'ドラム', icon: `${STORAGE_URL}/drums.png` },
-    { id: 'vocal', label: 'ボーカル', icon: `${STORAGE_URL}/vocal.png` },
-    { id: 'keyboard', label: 'キーボード', icon: `${STORAGE_URL}/keyboard.png` },
-    { id: 'piano', label: 'ピアノ', icon: `${STORAGE_URL}/piano.png` },
-    { id: 'saxophone', label: 'サックス', icon: `${STORAGE_URL}/saxophone.png` },
-    { id: 'trumpet', label: 'トランペット', icon: `${STORAGE_URL}/trumpet.png` },
-    { id: 'violin', label: 'バイオリン', icon: `${STORAGE_URL}/violin.png` },
-    { id: 'dj', label: 'DJ', icon: `${STORAGE_URL}/dj.png` },
-    { id: 'producer', label: 'プロデューサー', icon: `${STORAGE_URL}/producer.png` },
-    { id: 'songwriter', label: 'ソングライター', icon: `${STORAGE_URL}/songwriter.png` },
+    { id: 'guitar', label: 'ギター', icon: 'guitar' },
+    { id: 'bass', label: 'ベース', icon: 'bass' },
+    { id: 'drums', label: 'ドラム', icon: 'drums' },
+    { id: 'vocal', label: 'ボーカル', icon: 'vocal' },
+    { id: 'keyboard', label: 'キーボード', icon: 'keyboard' },
+    { id: 'piano', label: 'ピアノ', icon: 'piano' },
+    { id: 'saxophone', label: 'サックス', icon: 'saxophone' },
+    { id: 'trumpet', label: 'トランペット', icon: 'trumpet' },
+    { id: 'violin', label: 'バイオリン', icon: 'violin' },
+    { id: 'dj', label: 'DJ', icon: 'dj' },
+    { id: 'producer', label: 'プロデューサー', icon: 'producer' },
+    { id: 'songwriter', label: 'ソングライター', icon: 'songwriter' },
 ];
 
 export const GENRES = [
