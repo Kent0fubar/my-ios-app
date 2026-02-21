@@ -169,8 +169,8 @@ export default function ProfileScreen() {
 
                             <View style={styles.nameSection}>
                                 <View style={styles.nameRow}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Text style={styles.name}>{displayProfile.name}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
+                                        <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{displayProfile.name}</Text>
                                         <TouchableOpacity onPress={() => router.push('/profile/edit-name')} style={styles.nameEditButton}>
                                             <Ionicons name="pencil" size={14} color={Colors.textSecondary} />
                                         </TouchableOpacity>
