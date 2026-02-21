@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import ImageColors from 'react-native-image-colors';
 import { router } from 'expo-router';
 import Animated, {
     useSharedValue,
@@ -32,11 +33,14 @@ import { Profile } from '../../src/types/database';
 import { Modal, Alert } from 'react-native';
 import { log } from '../../src/lib/logger';
 import { INSTRUMENTS, GENRES } from '../../src/data/mockData';
+import { ScreenContainer } from '../../src/components/common/ScreenContainer';
+import { Badge } from '../../src/components/common/Badge';
+import { EmptyState } from '../../src/components/common/EmptyState';
 
 const { width, height } = Dimensions.get('window');
 const SWIPE_THRESHOLD = width * 0.45;
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop';
 
-// スプリングのアニメーション設定（「軽く」感じさせるためにスナップ感を強める）
 const SPRING_CONFIG = {
     damping: 20,
     stiffness: 200,
@@ -61,6 +65,43 @@ function SwipeCard({
 }) {
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
+    const [primaryColor, setPrimaryColor] = useState('rgba(0,0,0,0.7)');
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchColors = async () => {
+            const uri = user.avatar_url || DEFAULT_AVATAR;
+            try {
+                const result = await ImageColors.getColors(uri, {
+                    fallback: '#000000',
+                    cache: true,
+                    key: uri,
+                });
+
+                if (!isMounted) return;
+
+                let primaryColor = 'rgba(0,0,0,0.7)';
+                if (result.platform === 'ios') {
+                    primaryColor = result.detail;
+                } else if (result.platform === 'android') {
+                    primaryColor = result.dominant || result.vibrant || '#000000';
+                }
+
+                setPrimaryColor(primaryColor);
+            } catch (e) {
+                // 静かにフォールバック
+            }
+        };
+
+        fetchColors();
+        return () => { isMounted = false; };
+    }, [user.avatar_url]);
+
+    // 背景色（フォールバック考慮）
+    const badgeBackground = primaryColor.includes('rgba')
+        ? primaryColor
+        : `${primaryColor}CC`;
+    const badgeText = Colors.text;
 
     const panGesture = Gesture.Pan()
         .enabled(isFirst)
@@ -129,7 +170,7 @@ function SwipeCard({
         <GestureDetector gesture={panGesture}>
             <Animated.View style={[styles.card, animatedStyle]}>
                 <Image
-                    source={user.avatar_url ? { uri: user.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                    source={{ uri: user.avatar_url || DEFAULT_AVATAR }}
                     style={styles.cardImage}
                 />
 
@@ -151,47 +192,56 @@ function SwipeCard({
                 )}
 
                 {user.is_premium && (
-                    <View style={styles.premiumBadge}>
-                        <Ionicons name="star" size={12} color={Colors.gold} />
-                        <Text style={styles.premiumText}>PRO</Text>
-                    </View>
+                    <Badge
+                        label="PRO"
+                        icon="star"
+                        variant="premium"
+                        style={styles.premiumBadge}
+                    />
                 )}
 
                 {user.matchScore !== undefined && user.matchScore > 0 && (
-                    <View style={[
-                        styles.matchScoreBadge,
-                        { backgroundColor: user.matchScore >= 60 ? 'rgba(6,214,160,0.9)' : user.matchScore >= 30 ? 'rgba(249,115,22,0.9)' : 'rgba(100,116,139,0.8)' }
-                    ]}>
+                    <LinearGradient
+                        colors={[Colors.primary, Colors.secondary]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.matchScoreBadge}
+                    >
                         <Ionicons name="sparkles" size={12} color="#fff" />
-                        <Text style={styles.matchScoreText}>{user.matchScore}%</Text>
-                    </View>
+                        <Text style={styles.matchScoreText}>{user.matchScore}% Match</Text>
+                    </LinearGradient>
                 )}
 
                 <View style={styles.cardContent}>
                     <View style={styles.nameRow}>
                         <Text style={styles.userName}>{user.name}</Text>
                         {user.age && (
-                            <View style={styles.ageBadge}>
-                                <Text style={styles.userAge}>{user.age}</Text>
-                            </View>
+                            <Badge
+                                label={user.age}
+                                variant="glass"
+                                backgroundColor={badgeBackground}
+                            />
                         )}
                         {user.is_verified && (
                             <Ionicons name="checkmark-circle" size={20} color={Colors.accent} />
                         )}
                     </View>
 
-                    <View style={styles.locationRow}>
-                        <Ionicons name="location-outline" size={14} color={Colors.text} />
-                        <Text style={styles.locationText}>
-                            {user.location || '不明'} {user.distance !== undefined ? `• ${user.distance.toFixed(1)}km` : ''}
-                        </Text>
-                    </View>
+                    <View style={styles.infoRow}>
+                        <Badge
+                            label={`${user.location || '不明'} ${user.distance !== undefined ? `• ${user.distance.toFixed(1)}km` : ''}`}
+                            icon="location-outline"
+                            variant="glass"
+                            backgroundColor={badgeBackground}
+                        />
 
-                    {user.skill_level && (
-                        <View style={styles.skillBadge}>
-                            <Text style={styles.skillText}>{user.skill_level.toUpperCase()}</Text>
-                        </View>
-                    )}
+                        {user.skill_level && (
+                            <Badge
+                                label={user.skill_level.toUpperCase()}
+                                variant="primary"
+                            />
+                        )}
+                    </View>
 
                     <View style={styles.tagRow}>
                         {user.instruments?.slice(0, 3).map((instIdOrLabel) => {
@@ -319,12 +369,7 @@ export default function DiscoverScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[Colors.background, Colors.backgroundSecondary]}
-                style={StyleSheet.absoluteFill}
-            />
-
+        <ScreenContainer>
             <View style={styles.header}>
                 <View style={styles.logoContainer}>
                     <LinearGradient
@@ -376,27 +421,14 @@ export default function DiscoverScreen() {
                             );
                         })
                 ) : (
-                    <View style={styles.emptyState}>
-                        <Text style={styles.emptyEmoji}>🎵</Text>
-                        <Text style={styles.emptyTitle}>全員チェック済み！</Text>
-                        <Text style={styles.emptyText}>
-                            新しいミュージシャンが登録されるまでお待ちください
-                        </Text>
-                        <TouchableOpacity
-                            onPress={fetchUsers}
-                            activeOpacity={0.8}
-                        >
-                            <LinearGradient
-                                colors={[Colors.primary, Colors.secondary]}
-                                style={styles.resetButton}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                            >
-                                <Ionicons name="refresh" size={18} color="#fff" />
-                                <Text style={styles.resetText}>再読み込み</Text>
-                            </LinearGradient>
-                        </TouchableOpacity>
-                    </View>
+                    <EmptyState
+                        emoji="🎵"
+                        title="全員チェック済み！"
+                        description="新しいミュージシャンが登録されるまでお待ちください"
+                        onButtonPress={fetchUsers}
+                        buttonText="再読み込み"
+                        buttonIcon="refresh"
+                    />
                 )}
             </View>
 
@@ -444,12 +476,12 @@ export default function DiscoverScreen() {
 
                         <View style={styles.matchPhotos}>
                             <Image
-                                source={myProfile?.avatar_url ? { uri: myProfile.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                                source={{ uri: myProfile?.avatar_url || DEFAULT_AVATAR }}
                                 style={styles.matchAvatarLarge}
                             />
                             <Ionicons name="heart" size={40} color="#fff" />
                             <Image
-                                source={matchData?.opponent.avatar_url ? { uri: matchData.opponent.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                                source={{ uri: matchData?.opponent.avatar_url || DEFAULT_AVATAR }}
                                 style={styles.matchAvatarLarge}
                             />
                         </View>
@@ -476,11 +508,12 @@ export default function DiscoverScreen() {
                     </LinearGradient>
                 </View>
             </Modal>
-        </View>
+        </ScreenContainer>
     );
 }
 
 const styles = StyleSheet.create({
+    // --- Container & Layout ---
     container: {
         flex: 1,
         backgroundColor: Colors.background,
@@ -532,6 +565,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+
+    // --- Card Stack & Base Card ---
     cardStack: {
         flex: 1,
         alignItems: 'center',
@@ -541,10 +576,12 @@ const styles = StyleSheet.create({
     card: {
         position: 'absolute',
         width: width - Spacing.md * 2,
-        height: height * 0.62,
-        borderRadius: BorderRadius.xl,
+        height: height * 0.65,
+        borderRadius: 32,
         overflow: 'hidden',
         backgroundColor: Colors.card,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
         ...Shadow.lg,
     },
     cardImage: {
@@ -558,6 +595,117 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         height: '70%',
+    },
+
+    // --- Card Content & Badges ---
+    cardContent: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: Spacing.xl,
+        gap: Spacing.md,
+    },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    userName: {
+        fontSize: FontSize.xxl,
+        fontWeight: '800',
+        color: Colors.text,
+        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        flexWrap: 'wrap',
+    },
+    tagRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    bio: {
+        fontSize: FontSize.sm,
+        color: 'rgba(255,255,255,0.8)',
+        lineHeight: 20,
+    },
+
+    // --- Action Buttons ---
+    actions: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: Spacing.lg,
+        paddingBottom: Spacing.lg,
+        paddingTop: Spacing.md,
+    },
+    actionButton: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderWidth: 1.5,
+        borderColor: 'rgba(255,255,255,0.1)',
+        ...Shadow.lg,
+    },
+    nopeButton: {
+        borderColor: 'rgba(239, 68, 68, 0.3)',
+    },
+    superLikeButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        borderColor: 'rgba(59, 130, 246, 0.3)',
+    },
+    likeButton: {
+        borderColor: 'rgba(6, 214, 160, 0.3)',
+    },
+
+    // --- Stamps & Badges (Overlay) ---
+    matchScoreBadge: {
+        position: 'absolute',
+        top: 20,
+        left: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: BorderRadius.full,
+        ...Shadow.md,
+    },
+    matchScoreText: {
+        color: '#fff',
+        fontSize: FontSize.xs,
+        fontWeight: '900',
+        letterSpacing: 0.5,
+    },
+    premiumBadge: {
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: Colors.gold + '40',
+    },
+    premiumText: {
+        color: Colors.gold,
+        fontSize: FontSize.xs,
+        fontWeight: '700',
     },
     stampContainer: {
         position: 'absolute',
@@ -583,177 +731,11 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 4,
     },
-    premiumBadge: {
-        position: 'absolute',
-        top: 16,
-        right: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-        borderColor: Colors.gold + '40',
-    },
-    premiumText: {
-        color: Colors.gold,
-        fontSize: FontSize.xs,
-        fontWeight: '700',
-    },
-    cardContent: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: Spacing.lg,
-        gap: Spacing.sm,
-    },
-    nameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    userName: {
-        fontSize: FontSize.xxl,
-        fontWeight: '800',
-        color: Colors.text,
-    },
-    ageBadge: {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
-        paddingHorizontal: 10,
-        paddingVertical: 2,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.3)',
-    },
-    userAge: {
-        fontSize: FontSize.lg,
-        fontWeight: '800',
-        color: Colors.text,
-    },
-    locationRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        alignSelf: 'flex-start',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: BorderRadius.full,
-    },
-    locationText: {
-        fontSize: FontSize.sm,
-        fontWeight: '600',
-        color: Colors.text,
-    },
-    skillBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        alignSelf: 'flex-start',
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: BorderRadius.full,
-    },
-    skillEmoji: {
-        fontSize: 12,
-    },
-    skillText: {
-        fontSize: FontSize.xs,
-        color: Colors.text,
-        fontWeight: '600',
-    },
-    tagRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-    },
-    bio: {
-        fontSize: FontSize.sm,
-        color: 'rgba(255,255,255,0.8)',
-        lineHeight: 20,
-    },
-    actions: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: Spacing.lg,
-        paddingBottom: Spacing.lg,
-        paddingTop: Spacing.md,
-    },
-    actionButton: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: Colors.card,
-        borderWidth: 1,
-        ...Shadow.md,
-    },
-    nopeButton: {
-        borderColor: 'rgba(239, 68, 68, 0.3)',
-    },
-    superLikeButton: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        borderColor: 'rgba(59, 130, 246, 0.3)',
-    },
-    likeButton: {
-        borderColor: 'rgba(6, 214, 160, 0.3)',
-    },
-    emptyState: {
-        alignItems: 'center',
-        gap: Spacing.md,
-    },
-    emptyEmoji: {
-        fontSize: 64,
-    },
-    emptyTitle: {
-        fontSize: FontSize.xxl,
-        fontWeight: '700',
-        color: Colors.text,
-    },
-    emptyText: {
-        fontSize: FontSize.md,
-        color: Colors.textSecondary,
-        textAlign: 'center',
-        lineHeight: 24,
-    },
-    resetButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-        paddingVertical: 14,
-        paddingHorizontal: 28,
-        borderRadius: BorderRadius.xl,
-        marginTop: Spacing.md,
-    },
-    resetText: {
-        color: Colors.text,
-        fontSize: FontSize.md,
-        fontWeight: '700',
-    },
-    matchScoreBadge: {
-        position: 'absolute',
-        top: 16,
-        left: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: BorderRadius.full,
-    },
-    matchScoreText: {
-        color: '#fff',
-        fontSize: FontSize.sm,
-        fontWeight: '800',
-    },
+
+    // --- Empty State ---
+    // Badge コンポーネントに統合されたため削除可能ですが、独自のアニメーションなどが必要な場合に備えて予約または削除
+
+    // --- Modal ---
     modalOverlay: {
         flex: 1,
         justifyContent: 'center',

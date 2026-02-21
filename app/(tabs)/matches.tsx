@@ -16,6 +16,8 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { matchService } from '../../src/services/dataService';
 import { InstrumentTag, GenreTag } from '../../src/components/Tag';
+import { ScreenContainer } from '../../src/components/common/ScreenContainer';
+import { EmptyState } from '../../src/components/common/EmptyState';
 
 export default function MatchesScreen() {
     const { user } = useAuth();
@@ -59,12 +61,7 @@ export default function MatchesScreen() {
     const activeMatches = matches.filter(m => !!m.lastMessage);
 
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[Colors.background, Colors.backgroundSecondary]}
-                style={StyleSheet.absoluteFill}
-            />
-
+        <ScreenContainer>
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>マッチ</Text>
@@ -125,11 +122,11 @@ export default function MatchesScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>最近のメッセージ</Text>
                     {activeMatches.length === 0 ? (
-                        <View style={styles.emptyContainer}>
-                            <Ionicons name="chatbubbles-outline" size={48} color={Colors.textTertiary} />
-                            <Text style={styles.emptyText}>メッセージはまだありません</Text>
-                            <Text style={styles.emptySubText}>新しいマッチ相手にあいさつしてみましょう！</Text>
-                        </View>
+                        <EmptyState
+                            icon="chatbubbles-outline"
+                            title="メッセージはまだありません"
+                            description="新しいマッチ相手にあいさつしてみましょう！"
+                        />
                     ) : (
                         activeMatches.map((match) => {
                             const p = match.otherProfile;
@@ -175,7 +172,7 @@ export default function MatchesScreen() {
                     )}
                 </View>
             </ScrollView>
-        </View>
+        </ScreenContainer>
     );
 }
 
