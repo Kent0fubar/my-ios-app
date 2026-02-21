@@ -77,8 +77,6 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, focused }) => (
                         <TabIcon name={focused ? 'chatbubbles' : 'chatbubbles-outline'} color={color} focused={focused} />
                     ),
-                    tabBarBadge: 3,
-                    tabBarBadgeStyle: styles.badge,
                 }}
             />
             <Tabs.Screen
