@@ -8,18 +8,26 @@ import {
     Image,
     Alert,
     TextInput,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
 import { INSTRUMENTS, GENRES, SKILL_LEVELS, TAGS } from '../../src/data/mockData';
 import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { authService } from '../../src/services/authService';
+import { profileService } from '../../src/services/dataService';
 
 export default function ProfileScreen() {
-    const { user, profile, isAuthenticated } = useAuth();
+    const { user, profile, isAuthenticated, refreshProfile } = useAuth();
+    const [isLoading, setIsLoading] = useState(false);
+    const [isImageLoading, setIsImageLoading] = useState(false);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
 
     // 🛡️ 認証チェック（二重防御：タブレイアウトでもチェック済み）
     if (!isAuthenticated || !user) {
@@ -59,48 +67,54 @@ export default function ProfileScreen() {
         );
     };
 
-    // タグ管理のstate
-    const [selectedTags, setSelectedTags] = useState<string[]>(displayProfile.tags);
-    const [customTagInput, setCustomTagInput] = useState('');
-    const [isEditingTags, setIsEditingTags] = useState(false);
-    const MAX_TAGS = 10;
-    const MAX_TAG_LENGTH = 15;
+    const handlePickAvatar = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('エラー', '写真へのアクセス権限が必要です');
+            return;
+        }
 
-    const togglePresetTag = (tagId: string) => {
-        setSelectedTags(prev => {
-            if (prev.includes(tagId)) {
-                return prev.filter(t => t !== tagId);
-            }
-            if (prev.length >= MAX_TAGS) {
-                Alert.alert('上限', `タグは最大${MAX_TAGS}個までです`);
-                return prev;
-            }
-            return [...prev, tagId];
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
         });
-    };
 
-    const addCustomTag = () => {
-        const trimmed = customTagInput.trim();
-        if (!trimmed) return;
-        if (trimmed.length > MAX_TAG_LENGTH) {
-            Alert.alert('エラー', `タグは${MAX_TAG_LENGTH}文字以内にしてください`);
-            return;
-        }
-        const customId = `custom:${trimmed}`;
-        if (selectedTags.includes(customId)) {
-            Alert.alert('エラー', 'このタグは既に追加されています');
-            return;
-        }
-        if (selectedTags.length >= MAX_TAGS) {
-            Alert.alert('上限', `タグは最大${MAX_TAGS}個までです`);
-            return;
-        }
-        setSelectedTags(prev => [...prev, customId]);
-        setCustomTagInput('');
-    };
+        if (!result.canceled && result.assets[0].uri && user) {
+            setIsLoading(true);
+            try {
+                const uri = result.assets[0].uri;
+                if (__DEV__) console.log('[Avatar] Starting upload with URI:', uri);
 
-    const removeTag = (tagId: string) => {
-        setSelectedTags(prev => prev.filter(t => t !== tagId));
+                const extension = uri.split('.').pop() || 'jpg';
+                const publicUrl = await profileService.uploadAvatar(user.id, uri, extension);
+
+                // キャッシュ回避のためにクエリパラメータとしてタイムスタンプを付与
+                const timestampedUrl = `${publicUrl}?t=${Date.now()}`;
+                if (__DEV__) console.log('[Avatar] Uploaded. Setting preview URL:', timestampedUrl);
+
+                // 1. まずステートを更新して画面上の表示を即座に切り替える
+                setAvatarPreview(timestampedUrl);
+                setIsImageLoading(true);
+
+                // 2. その間にバックグラウンドでDBを更新
+                await profileService.upsertProfile({
+                    avatar_url: timestampedUrl,
+                });
+
+                // 3. プロフィール情報を再取得
+                await refreshProfile();
+
+                if (__DEV__) console.log('[Avatar] All sync completed');
+                Alert.alert('成功', 'アバターを更新しました');
+            } catch (err: any) {
+                console.error('[Avatar] Update failed:', err);
+                Alert.alert('エラー', 'アップロードに失敗しました。詳細: ' + (err.message || '不明なエラー'));
+            } finally {
+                setIsLoading(false);
+            }
+        }
     };
 
     // タグの表示情報を取得
@@ -113,11 +127,17 @@ export default function ProfileScreen() {
         return { label: tagId, icon: '🏷️', color: '#8B5CF6', isCustom: true };
     };
 
-    const userInstruments = displayProfile.instruments
-        .map((id) => INSTRUMENTS.find((i) => i.id === id))
+    const userInstruments = Array.from(new Set(profile?.instruments || []))
+        .map((idOrLabel) =>
+            INSTRUMENTS.find((i) => i.id === idOrLabel) ||
+            INSTRUMENTS.find((i) => i.label === idOrLabel)
+        )
         .filter(Boolean);
-    const userGenres = displayProfile.genres
-        .map((id) => GENRES.find((g) => g.id === id))
+    const userGenres = Array.from(new Set(profile?.genres || []))
+        .map((idOrLabel) =>
+            GENRES.find((g) => g.id === idOrLabel) ||
+            GENRES.find((g) => g.label === idOrLabel)
+        )
         .filter(Boolean);
     const skillLevel = SKILL_LEVELS.find((s) => s.id === displayProfile.skillLevel);
 
@@ -158,11 +178,15 @@ export default function ProfileScreen() {
                                     end={{ x: 1, y: 1 }}
                                 >
                                     <Image
-                                        source={{ uri: displayProfile.imageUrl }}
+                                        source={{ uri: avatarPreview || displayProfile.imageUrl }}
                                         style={styles.avatar}
                                     />
                                 </LinearGradient>
-                                <TouchableOpacity style={styles.editAvatarButton}>
+                                <TouchableOpacity
+                                    style={styles.editAvatarButton}
+                                    onPress={handlePickAvatar}
+                                    disabled={isLoading}
+                                >
                                     <Ionicons name="camera" size={14} color="#fff" />
                                 </TouchableOpacity>
                             </View>
@@ -178,8 +202,13 @@ export default function ProfileScreen() {
                                     {displayProfile.age && <Text style={styles.age}>{displayProfile.age}</Text>}
                                 </View>
                                 <View style={styles.locationRow}>
-                                    <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
-                                    <Text style={styles.location}>{displayProfile.location}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 }}>
+                                        <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
+                                        <Text style={styles.location} numberOfLines={1}>{displayProfile.location}</Text>
+                                        <TouchableOpacity onPress={() => router.push('/profile/edit-location')} style={styles.nameEditButton}>
+                                            <Ionicons name="pencil" size={14} color={Colors.textSecondary} />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                             </View>
                         </View>
@@ -247,19 +276,18 @@ export default function ProfileScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>担当楽器</Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => router.push('/profile/edit-instruments')}>
                             <Ionicons name="pencil" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
                     <View style={styles.tagRow}>
-                        {userInstruments.map((inst) => (
+                        {userInstruments.map((inst, index) => (
                             <InstrumentTag
-                                key={inst!.id}
-                                icon={inst!.icon}
+                                key={`${inst!.id}-${index}`}
+                                icon={(inst as any)!.icon}
                                 label={inst!.label}
                                 style={styles.profileInstrumentTag}
                                 textStyle={styles.profileTagLabel}
-                                emojiStyle={styles.profileTagEmoji}
                             />
                         ))}
                     </View>
@@ -269,14 +297,14 @@ export default function ProfileScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>好きなジャンル</Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => router.push('/profile/edit-genres')}>
                             <Ionicons name="pencil" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
                     <View style={styles.tagRow}>
-                        {userGenres.map((genre) => (
+                        {userGenres.map((genre, index) => (
                             <GenreTag
-                                key={genre!.id}
+                                key={`${genre!.id}-${index}`}
                                 label={genre!.label}
                                 color={genre!.color}
                                 style={styles.profileGenreTag}
@@ -290,98 +318,38 @@ export default function ProfileScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>マッチングタグ</Text>
-                        <TouchableOpacity onPress={() => setIsEditingTags(!isEditingTags)}>
-                            <Ionicons name={isEditingTags ? 'checkmark' : 'pencil'} size={16} color={Colors.primary} />
+                        <TouchableOpacity
+                            onPress={() => router.push('/profile/edit-tags')}
+                            disabled={isLoading}
+                        >
+                            <Ionicons
+                                name="pencil"
+                                size={16}
+                                color={Colors.primary}
+                            />
                         </TouchableOpacity>
                     </View>
 
                     <Text style={styles.tagHint}>
-                        {selectedTags.length}/{MAX_TAGS} タグ設定中 — 同じタグのユーザーとマッチしやすくなります
+                        {displayProfile.tags.length} タグ設定中 — 同じタグのユーザーとマッチしやすくなります
                     </Text>
 
                     {/* 選択済みタグの表示 */}
-                    {selectedTags.length > 0 && (
+                    {displayProfile.tags.length > 0 && (
                         <View style={styles.tagRow}>
-                            {selectedTags.map((tagId) => {
+                            {displayProfile.tags.map((tagId: string) => {
                                 const tag = getTagDisplay(tagId);
                                 return (
-                                    <TouchableOpacity
+                                    <View
                                         key={tagId}
                                         style={[styles.matchTag, { backgroundColor: tag.color + '20', borderColor: tag.color + '40' }]}
-                                        onPress={() => isEditingTags && removeTag(tagId)}
-                                        activeOpacity={isEditingTags ? 0.6 : 1}
                                     >
-                                        <Text style={styles.tagEmoji}>{tag.icon}</Text>
                                         <Text style={[styles.tagLabel, { color: tag.color }]}>
                                             {tag.label}
                                         </Text>
-                                        {isEditingTags && (
-                                            <Ionicons name="close-circle" size={14} color={tag.color} />
-                                        )}
-                                    </TouchableOpacity>
+                                    </View>
                                 );
                             })}
-                        </View>
-                    )}
-
-                    {/* 編集モード */}
-                    {isEditingTags && (
-                        <View style={styles.tagEditSection}>
-                            {/* カスタムタグ入力 */}
-                            <View style={styles.customTagInputRow}>
-                                <TextInput
-                                    style={styles.customTagInput}
-                                    value={customTagInput}
-                                    onChangeText={setCustomTagInput}
-                                    placeholder="自由にタグを入力..."
-                                    placeholderTextColor={Colors.textTertiary}
-                                    maxLength={MAX_TAG_LENGTH}
-                                    onSubmitEditing={addCustomTag}
-                                    returnKeyType="done"
-                                />
-                                <TouchableOpacity
-                                    style={[
-                                        styles.addTagButton,
-                                        !customTagInput.trim() && styles.addTagButtonDisabled,
-                                    ]}
-                                    onPress={addCustomTag}
-                                    disabled={!customTagInput.trim()}
-                                >
-                                    <Ionicons name="add" size={20} color="#fff" />
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* プリセットタグ一覧 */}
-                            <Text style={styles.presetLabel}>おすすめタグ</Text>
-                            <View style={styles.tagRow}>
-                                {TAGS.map((tag) => {
-                                    const isSelected = selectedTags.includes(tag.id);
-                                    return (
-                                        <TouchableOpacity
-                                            key={tag.id}
-                                            style={[
-                                                styles.presetTag,
-                                                isSelected
-                                                    ? { backgroundColor: tag.color + '30', borderColor: tag.color }
-                                                    : { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: Colors.surfaceBorder },
-                                            ]}
-                                            onPress={() => togglePresetTag(tag.id)}
-                                            activeOpacity={0.6}
-                                        >
-                                            <Text style={styles.tagEmoji}>{tag.icon}</Text>
-                                            <Text style={[
-                                                styles.presetTagLabel,
-                                                { color: isSelected ? tag.color : Colors.textSecondary },
-                                            ]}>
-                                                {tag.label}
-                                            </Text>
-                                            {isSelected && (
-                                                <Ionicons name="checkmark" size={14} color={tag.color} />
-                                            )}
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
                         </View>
                     )}
                 </View>
@@ -390,7 +358,7 @@ export default function ProfileScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionTitle}>スキルレベル</Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => router.push('/profile/edit-skill')}>
                             <Ionicons name="pencil" size={16} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
@@ -627,9 +595,6 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         gap: 6,
     },
-    profileTagEmoji: {
-        fontSize: 16,
-    },
     profileTagLabel: {
         fontSize: FontSize.sm,
     },
@@ -760,6 +725,13 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: BorderRadius.full,
         borderWidth: 1,
+    },
+    avatarLoadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: BorderRadius.full,
     },
     presetTagLabel: {
         fontSize: FontSize.sm,

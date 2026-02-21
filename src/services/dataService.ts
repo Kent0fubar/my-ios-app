@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { withRateLimit, getRemainingSwipes } from '../lib/rateLimit';
 import { Profile, Match, Message } from '../types/database';
 import { locationService } from './locationService';
+import { File as ExpoFile } from 'expo-file-system';
 
 // UUID形式のバリデーション（SQLインジェクション防止）
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,21 +93,52 @@ export const profileService = {
         }
 
         return withRateLimit('upload:file', userId, async () => {
-            const fileName = `${userId}/avatar.${fileExt}`;
-            const response = await fetch(fileUri);
-            const blob = await response.blob();
+            // 拡張子の正規化
+            const ext = fileExt.toLowerCase();
+            const isJpg = ['jpg', 'jpeg', 'jpe'].includes(ext);
+            const normalizedExt = isJpg ? 'jpg' : ext;
+            const fileName = `${userId}/avatar.${normalizedExt}`;
+            const contentType = isJpg ? 'image/jpeg' : `image/${ext}`;
 
-            const { error } = await supabase.storage
+            if (__DEV__) console.log('[DataService] Upload started (Modern API):', fileName);
+
+            let arrayBuffer;
+            try {
+                // Expo SDK 54+ の最新APIを使用してファイルをBinary(ArrayBuffer)として直接読み込み
+                const file = new ExpoFile(fileUri);
+                arrayBuffer = await file.arrayBuffer();
+
+                if (__DEV__) console.log('[DataService] ArrayBuffer prepared. Size:', arrayBuffer?.byteLength);
+
+                if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                    throw new Error('画像の読み込みに失敗しました（データが空です）');
+                }
+            } catch (err: any) {
+                if (__DEV__) console.error('[DataService] File read failed:', err);
+                throw new Error('画像の読み取りに失敗しました: ' + err.message);
+            }
+
+            // ストレージへアップロード
+            const { data, error } = await supabase.storage
                 .from('avatars')
-                .upload(fileName, blob, { upsert: true });
+                .upload(fileName, arrayBuffer, {
+                    upsert: true,
+                    contentType: contentType,
+                    cacheControl: '3600'
+                });
 
-            if (error) throw error;
+            if (error) {
+                if (__DEV__) console.error('[DataService] Supabase Storage error:', error);
+                throw error;
+            }
 
-            const { data } = supabase.storage
+            if (__DEV__) console.log('[DataService] Storage success (Binary):', data);
+
+            const { data: { publicUrl } } = supabase.storage
                 .from('avatars')
                 .getPublicUrl(fileName);
 
-            return data.publicUrl;
+            return publicUrl;
         });
     },
 };

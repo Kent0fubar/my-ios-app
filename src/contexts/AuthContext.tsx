@@ -42,16 +42,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
+        let mounted = true;
+
+        // セーフティタイマー：万が一初期化が完了しない場合でも5秒後にローディングを解除
+        const safetyTimer = setTimeout(() => {
+            if (mounted && isLoading) {
+                if (__DEV__) console.warn('[Auth] Initialization timed out, forcing isLoading to false');
+                setIsLoading(false);
+            }
+        }, 5000);
+
         // 初回ロード時にセッションを取得
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setIsLoading(false);
-        });
+        supabase.auth.getSession()
+            .then(({ data: { session } }) => {
+                if (!mounted) return;
+                if (__DEV__) console.log('[Auth] Initial session fetched:', !!session);
+                setSession(session);
+                setUser(session?.user ?? null);
+                setIsLoading(false);
+                clearTimeout(safetyTimer);
+            })
+            .catch(err => {
+                if (__DEV__) console.error('[Auth] Initial session fetch error:', err);
+                if (mounted) {
+                    setIsLoading(false);
+                    clearTimeout(safetyTimer);
+                }
+            });
 
         // 認証状態の変更を監視
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (_event, session) => {
+                if (!mounted) return;
+                if (__DEV__) console.log('[Auth] Auth state changed:', _event, !!session);
+
                 setSession(session);
                 setUser(session?.user ?? null);
 
@@ -63,7 +87,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         );
 
-        return () => subscription.unsubscribe();
+        return () => {
+            mounted = false;
+            clearTimeout(safetyTimer);
+            subscription.unsubscribe();
+        };
     }, [refreshProfile]);
 
     // ユーザーが変わったらプロフィールを取得

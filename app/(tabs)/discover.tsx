@@ -190,7 +190,7 @@ function SwipeCard({
 
                     <View style={styles.tagRow}>
                         {user.instruments?.slice(0, 3).map((inst) => (
-                            <InstrumentTag key={inst} icon="🎸" label={inst} />
+                            <InstrumentTag key={inst} icon="music" label={inst} />
                         ))}
                     </View>
 
@@ -220,15 +220,15 @@ export default function DiscoverScreen() {
         if (!currentUser) return;
         setIsLoading(true);
         try {
-            // 現在地のリアルタイム取得＆プロフィールへの緯度経度保存
-            const location = await locationService.updateProfileLocation(currentUser.id);
-            let lat = myProfile?.latitude || undefined;
-            let lon = myProfile?.longitude || undefined;
+            // 位置情報の取得は並行して行い、完了を待たずに検索を開始する（既存のプロフィール情報を優先）
+            // これによりGPS取得で画面が止まるのを防ぐ
+            const lat = myProfile?.latitude || undefined;
+            const lon = myProfile?.longitude || undefined;
 
-            if (location) {
-                lat = location.latitude;
-                lon = location.longitude;
-            }
+            // 非同期で位置情報を更新（バックグラウンドで実行）
+            locationService.updateProfileLocation(currentUser.id).catch(err => {
+                if (__DEV__) console.warn('[Discover] Background location update failed:', err);
+            });
 
             const users = await discoveryService.getDiscoverUsers(currentUser.id, {
                 latitude: lat,
