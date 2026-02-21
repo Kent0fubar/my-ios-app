@@ -15,6 +15,7 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { profileService } from '../../src/services/dataService';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
+import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 
 const INSTRUMENTS = ['ボーカル', 'ギター', 'ベース', 'ドラム', 'キーボード', 'サックス', 'トランペット', 'DJ'];
 const GENRES = ['Rock', 'Pop', 'Jazz', 'Metal', 'Funk', 'Blues', 'Hip Hop', 'Electronic'];
@@ -88,12 +89,7 @@ export default function EditProfileScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[Colors.background, Colors.backgroundSecondary]}
-                style={StyleSheet.absoluteFill}
-            />
-
+        <ScreenContainer>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.headerButton}>
@@ -250,15 +246,11 @@ export default function EditProfileScreen() {
                     </Text>
                 </View>
             </ScrollView>
-        </View>
+        </ScreenContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',

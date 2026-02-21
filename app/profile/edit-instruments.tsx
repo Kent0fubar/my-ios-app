@@ -251,7 +251,7 @@ export default function EditInstrumentsScreen() {
             <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={StyleSheet.absoluteFill} />
 
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.headerButton} disabled={isLoading}>
+                <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.headerButton} disabled={isLoading}>
                     <Ionicons name="chevron-back" size={28} color={Colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>担当楽器を編集</Text>

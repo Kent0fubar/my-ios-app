@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../src/theme';
+import { ScreenContainer } from '../src/components/common/ScreenContainer';
 
 const { width } = Dimensions.get('window');
 
@@ -60,14 +61,12 @@ export default function PremiumScreen() {
     const [selectedPlan, setSelectedPlan] = useState<PlanId>('pro');
 
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[Colors.background, '#13102F', Colors.backgroundSecondary]}
-                style={StyleSheet.absoluteFill}
-            />
-
+        <ScreenContainer gradientColors={[Colors.background, '#13102F', Colors.backgroundSecondary]}>
             {/* Close button */}
-            <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+            <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
+            >
                 <Ionicons name="close" size={24} color={Colors.textSecondary} />
             </TouchableOpacity>
 
@@ -232,15 +231,11 @@ export default function PremiumScreen() {
                     購読はいつでもキャンセルできます。利用規約に同意します。
                 </Text>
             </View>
-        </View>
+        </ScreenContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
     closeButton: {
         position: 'absolute',
         top: 56,

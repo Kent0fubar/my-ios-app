@@ -21,6 +21,8 @@ import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { authService } from '../../src/services/authService';
 import { profileService } from '../../src/services/dataService';
+import { ScreenContainer } from '../../src/components/common/ScreenContainer';
+import { Badge } from '../../src/components/common/Badge';
 
 export default function ProfileScreen() {
     const { user, profile, isAuthenticated, refreshProfile } = useAuth();
@@ -143,12 +145,7 @@ export default function ProfileScreen() {
     const skillLevel = SKILL_LEVELS.find((s) => s.id === displayProfile.skillLevel);
 
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[Colors.background, Colors.backgroundSecondary]}
-                style={StyleSheet.absoluteFill}
-            />
-
+        <ScreenContainer>
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
@@ -164,7 +161,7 @@ export default function ProfileScreen() {
                 {/* Profile card */}
                 <View style={styles.profileCard}>
                     <LinearGradient
-                        colors={[Colors.primary + '15', Colors.secondary + '15']}
+                        colors={[Colors.backgroundSecondary, Colors.backgroundTertiary]}
                         style={styles.profileCardGradient}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
@@ -173,43 +170,52 @@ export default function ProfileScreen() {
                         <View style={styles.avatarSection}>
                             <View style={styles.avatarContainer}>
                                 <LinearGradient
-                                    colors={[Colors.primary, Colors.secondary]}
+                                    colors={displayProfile.isPremium ? [Colors.gold, Colors.goldGradientEnd] : [Colors.primary, Colors.secondary]}
                                     style={styles.avatarBorder}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 1 }}
                                 >
-                                    <Image
-                                        source={{ uri: avatarPreview || displayProfile.imageUrl }}
-                                        style={styles.avatar}
-                                    />
+                                    <View style={styles.avatarInner}>
+                                        <Image
+                                            source={{ uri: avatarPreview || displayProfile.imageUrl }}
+                                            style={styles.avatar}
+                                        />
+                                        {isImageLoading && (
+                                            <View style={styles.avatarLoadingOverlay}>
+                                                <ActivityIndicator color={Colors.primary} />
+                                            </View>
+                                        )}
+                                    </View>
                                 </LinearGradient>
                                 <TouchableOpacity
-                                    style={styles.editAvatarButton}
+                                    style={[styles.editAvatarButton, displayProfile.isPremium && { backgroundColor: Colors.gold }]}
                                     onPress={handlePickAvatar}
                                     disabled={isLoading}
                                 >
-                                    <Ionicons name="camera" size={14} color="#fff" />
+                                    <Ionicons name="camera" size={14} color={displayProfile.isPremium ? Colors.textInverse : "#fff"} />
                                 </TouchableOpacity>
                             </View>
 
                             <View style={styles.nameSection}>
                                 <View style={styles.nameRow}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
-                                        <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{displayProfile.name}</Text>
-                                        <TouchableOpacity onPress={() => router.push('/profile/edit-name')} style={styles.nameEditButton}>
-                                            <Ionicons name="pencil" size={14} color={Colors.textSecondary} />
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, flexWrap: 'wrap' }}>
+                                        <Text style={styles.name} numberOfLines={1}>{displayProfile.name}</Text>
+                                        {displayProfile.isPremium && (
+                                            <Badge label="PREMIUM" variant="premium" icon="star" />
+                                        )}
+                                        <TouchableOpacity onPress={() => router.push('/profile/edit-name')} style={styles.miniEditButton}>
+                                            <Ionicons name="pencil" size={12} color={Colors.primary} />
                                         </TouchableOpacity>
                                     </View>
-                                    {displayProfile.age && <Text style={styles.age}>{displayProfile.age}</Text>}
                                 </View>
-                                <View style={styles.locationRow}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 }}>
-                                        <Ionicons name="location-outline" size={14} color={Colors.textSecondary} />
-                                        <Text style={styles.location} numberOfLines={1}>{displayProfile.location}</Text>
-                                        <TouchableOpacity onPress={() => router.push('/profile/edit-location')} style={styles.nameEditButton}>
-                                            <Ionicons name="pencil" size={14} color={Colors.textSecondary} />
-                                        </TouchableOpacity>
-                                    </View>
+                                <View style={styles.badgeRow}>
+                                    {displayProfile.age && (
+                                        <Badge label={`${displayProfile.age}歳`} icon="calendar-outline" variant="glass" />
+                                    )}
+                                    <Badge label={displayProfile.location} icon="location-outline" variant="glass" />
+                                    <TouchableOpacity onPress={() => router.push('/profile/edit-location')} style={styles.miniEditButton}>
+                                        <Ionicons name="pencil" size={12} color={Colors.primary} />
+                                    </TouchableOpacity>
                                 </View>
                             </View>
                         </View>
@@ -395,15 +401,11 @@ export default function ProfileScreen() {
 
                 <Text style={styles.version}>BandLink v1.0.0</Text>
             </ScrollView>
-        </View>
+        </ScreenContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
     scrollContent: {
         paddingBottom: 120,
     },
@@ -433,6 +435,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: Colors.surfaceBorder,
         marginBottom: Spacing.lg,
+        ...Shadow.md,
     },
     profileCardGradient: {
         padding: Spacing.lg,
@@ -454,12 +457,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    avatar: {
+    avatarInner: {
         width: 82,
         height: 82,
         borderRadius: 41,
-        borderWidth: 2,
-        borderColor: Colors.background,
+        backgroundColor: Colors.background,
+        overflow: 'hidden',
+    },
+    avatar: {
+        width: '100%',
+        height: '100%',
     },
     editAvatarButton: {
         position: 'absolute',
@@ -473,47 +480,41 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 2,
         borderColor: Colors.background,
+        ...Shadow.sm,
     },
     nameSection: {
         flex: 1,
-        gap: 4,
+        gap: 8,
     },
     nameRow: {
         flexDirection: 'row',
-        alignItems: 'baseline',
-        gap: Spacing.sm,
-        marginBottom: 4,
-    },
-    nameEditButton: {
-        padding: 4,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 12,
-        justifyContent: 'center',
         alignItems: 'center',
+        gap: Spacing.sm,
     },
     name: {
         fontSize: FontSize.xxl,
         fontWeight: '800',
         color: Colors.text,
     },
-    age: {
-        fontSize: FontSize.lg,
-        color: Colors.textSecondary,
-    },
-    locationRow: {
+    badgeRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        flexWrap: 'wrap',
+        gap: Spacing.xs,
     },
-    location: {
-        fontSize: FontSize.sm,
-        color: Colors.textSecondary,
+    miniEditButton: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     statsRow: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.03)',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         borderRadius: BorderRadius.lg,
         paddingVertical: Spacing.md,
     },
@@ -682,60 +683,10 @@ const styles = StyleSheet.create({
         color: Colors.textTertiary,
         marginBottom: Spacing.sm,
     },
-    tagEditSection: {
-        marginTop: Spacing.md,
-        gap: Spacing.md,
-    },
-    customTagInputRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    customTagInput: {
-        flex: 1,
-        height: 44,
-        backgroundColor: Colors.card,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        borderColor: Colors.surfaceBorder,
-        paddingHorizontal: Spacing.md,
-        fontSize: FontSize.md,
-        color: Colors.text,
-    },
-    addTagButton: {
-        width: 44,
-        height: 44,
-        borderRadius: BorderRadius.md,
-        backgroundColor: Colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    addTagButtonDisabled: {
-        opacity: 0.4,
-    },
-    presetLabel: {
-        fontSize: FontSize.sm,
-        fontWeight: '600',
-        color: Colors.textSecondary,
-    },
-    presetTag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: BorderRadius.full,
-        borderWidth: 1,
-    },
     avatarLoadingOverlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: BorderRadius.full,
-    },
-    presetTagLabel: {
-        fontSize: FontSize.sm,
-        fontWeight: '500',
     },
 });
