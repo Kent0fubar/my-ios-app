@@ -28,6 +28,7 @@ export default function MatchesScreen() {
         try {
             const data = await matchService.getMatches(user.id);
             setMatches(data);
+            console.log('[Matches] Fetched data:', JSON.stringify(data, null, 2));
         } catch (error) {
             console.error('[Matches] Fetch error:', error);
         } finally {

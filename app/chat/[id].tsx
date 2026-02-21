@@ -44,6 +44,7 @@ export default function ChatScreen() {
         let channel: any;
 
         const initChat = async () => {
+            console.log('[Chat] initChat started with otherUserId:', otherUserId, 'currentUser:', currentUser.id);
             try {
                 // 相手のプロフィールを取得
                 const profile = await profileService.getProfile(otherUserId, currentUser.id);
@@ -85,8 +86,8 @@ export default function ChatScreen() {
                         }, 100);
                     }
                 });
-            } catch (error) {
-                console.error('[Chat] Init error:', error);
+            } catch (error: any) {
+                console.error('[Chat] Init error:', error.message || error);
             } finally {
                 setIsLoading(false);
             }
