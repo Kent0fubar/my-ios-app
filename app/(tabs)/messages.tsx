@@ -6,6 +6,7 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -68,7 +69,7 @@ export default function MessagesScreen() {
                                 key={user.id}
                                 style={styles.onlineUser}
                                 activeOpacity={0.8}
-                                onPress={() => router.push(`/chat/${user.id}`)}
+                                onPress={() => Alert.alert('デモ画面', 'これはデザイン用のデモ画面です。実際のメッセージ交換は「マッチ」タブから行ってください。')}
                             >
                                 <View style={styles.onlineAvatarContainer}>
                                     <Image
@@ -97,7 +98,7 @@ export default function MessagesScreen() {
                                 key={conv.user.id}
                                 style={styles.conversationItem}
                                 activeOpacity={0.7}
-                                onPress={() => router.push(`/chat/${conv.user.id}`)}
+                                onPress={() => Alert.alert('デモ画面', 'これはデザイン用のデモ画面です。実際のメッセージ交換は「マッチ」タブから行ってください。')}
                             >
                                 <View style={styles.avatarContainer}>
                                     <Image

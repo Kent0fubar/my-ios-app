@@ -254,43 +254,32 @@ export const discoveryService = {
 
             if (swipeError) throw swipeError;
 
-            // LIKE/SUPERLIKEの場合、相手も自分をLIKEしているかチェック
+            // LIKE/SUPERLIKEの場合、テスト環境（開発中）のため強制的にマッチを成立させる
             if (direction === 'like' || direction === 'superlike') {
-                const { data: reverseSwipe } = await supabase
-                    .from('swipes')
+                const existingMatchCheck = await supabase
+                    .from('matches')
                     .select('id')
-                    .eq('swiper_id', swipedId)
-                    .eq('swiped_id', swiperId)
-                    .in('direction', ['like', 'superlike'])
+                    .or(`and(user1_id.eq.${swiperId},user2_id.eq.${swipedId}),and(user1_id.eq.${swipedId},user2_id.eq.${swiperId})`)
+                    .maybeSingle();
+
+                if (existingMatchCheck.data) {
+                    return { matched: true, matchId: existingMatchCheck.data.id };
+                }
+
+                // マッチ強制成立！(本来は reverseSwipe をチェックするがテストのためスキップ)
+                const matchData: any = {
+                    user1_id: swiperId,
+                    user2_id: swipedId,
+                };
+
+                const { data: match, error: matchError } = await supabase
+                    .from('matches')
+                    .insert(matchData)
+                    .select()
                     .single();
 
-                if (reverseSwipe) {
-                    // 既存のマッチがないか再確認
-                    const { data: existingMatch } = await supabase
-                        .from('matches')
-                        .select('id')
-                        .or(`and(user1_id.eq.${swiperId},user2_id.eq.${swipedId}),and(user1_id.eq.${swipedId},user2_id.eq.${swiperId})`)
-                        .maybeSingle();
-
-                    if (existingMatch) {
-                        return { matched: true, matchId: existingMatch.id };
-                    }
-
-                    // マッチ成立！
-                    const matchData: any = {
-                        user1_id: swiperId,
-                        user2_id: swipedId,
-                    };
-
-                    const { data: match, error: matchError } = await supabase
-                        .from('matches')
-                        .insert(matchData)
-                        .select()
-                        .single();
-
-                    if (matchError) throw matchError;
-                    return { matched: true, matchId: match.id };
-                }
+                if (matchError) throw matchError;
+                return { matched: true, matchId: match.id };
             }
 
             return { matched: false };
