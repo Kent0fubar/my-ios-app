@@ -169,7 +169,12 @@ export default function ProfileScreen() {
 
                             <View style={styles.nameSection}>
                                 <View style={styles.nameRow}>
-                                    <Text style={styles.name}>{displayProfile.name}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Text style={styles.name}>{displayProfile.name}</Text>
+                                        <TouchableOpacity onPress={() => router.push('/profile/edit')} style={styles.nameEditButton}>
+                                            <Ionicons name="pencil" size={14} color={Colors.textSecondary} />
+                                        </TouchableOpacity>
+                                    </View>
                                     {displayProfile.age && <Text style={styles.age}>{displayProfile.age}</Text>}
                                 </View>
                                 <View style={styles.locationRow}>
@@ -508,6 +513,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'baseline',
         gap: Spacing.sm,
+        marginBottom: 4,
+    },
+    nameEditButton: {
+        padding: 4,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     name: {
         fontSize: FontSize.xxl,
