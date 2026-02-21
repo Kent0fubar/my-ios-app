@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -6,37 +6,58 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
-    Alert,
+    ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
-import { MOCK_USERS, INSTRUMENTS } from '../../src/data/mockData';
-
-// デモ用のメッセージデータ
-const CONVERSATIONS = [
-    {
-        user: MOCK_USERS[0],
-        lastMessage: 'こんにちは！ロックバンド結成に興味があります 🎸',
-        time: '2分前',
-        unread: 2,
-    },
-    {
-        user: MOCK_USERS[1],
-        lastMessage: '今週末セッションしませんか？🎹',
-        time: '15分前',
-        unread: 1,
-    },
-    {
-        user: MOCK_USERS[3],
-        lastMessage: 'オリジナル曲、聴いてもらえますか？',
-        time: '1時間前',
-        unread: 0,
-    },
-];
+import { useAuth } from '../../src/contexts/AuthContext';
+import { matchService } from '../../src/services/dataService';
 
 export default function MessagesScreen() {
+    const { user } = useAuth();
+    const [matches, setMatches] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchMatches = async () => {
+        if (!user) return;
+        try {
+            const data = await matchService.getMatches(user.id);
+            setMatches(data);
+        } catch (error) {
+            console.error('[Messages] Fetch error:', error);
+        } finally {
+            setIsLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchMatches();
+    }, [user]);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchMatches();
+    };
+
+    if (isLoading && !refreshing) {
+        return (
+            <View style={[styles.container, styles.loadingContainer]}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+        );
+    }
+
+    // 会話（メッセージがあるもの）
+    const activeMatches = matches.filter(m => !!m.lastMessage);
+
+    // オンライン中のユーザー（とりあえずマッチした人を表示）
+    const onlineMatches = matches.filter(m => m.otherProfile).slice(0, 10);
+
     return (
         <View style={styles.container}>
             <LinearGradient
@@ -55,97 +76,114 @@ export default function MessagesScreen() {
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+                }
             >
                 {/* Online now */}
-                <View style={styles.onlineSection}>
-                    <Text style={styles.sectionTitle}>オンライン中</Text>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.onlineList}
-                    >
-                        {MOCK_USERS.slice(0, 4).map((user) => (
-                            <TouchableOpacity
-                                key={user.id}
-                                style={styles.onlineUser}
-                                activeOpacity={0.8}
-                                onPress={() => Alert.alert('デモ画面', 'これはデザイン用のデモ画面です。実際のメッセージ交換は「マッチ」タブから行ってください。')}
-                            >
-                                <View style={styles.onlineAvatarContainer}>
-                                    <Image
-                                        source={{ uri: user.imageUrl }}
-                                        style={styles.onlineAvatar}
-                                    />
-                                    <View style={styles.onlineDot} />
-                                </View>
-                                <Text style={styles.onlineName} numberOfLines={1}>
-                                    {user.name}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
+                {onlineMatches.length > 0 && (
+                    <View style={styles.onlineSection}>
+                        <Text style={styles.sectionTitle}>つながり</Text>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.onlineList}
+                        >
+                            {onlineMatches.map((match) => {
+                                const profile = match.otherProfile;
+                                return (
+                                    <TouchableOpacity
+                                        key={match.id}
+                                        style={styles.onlineUser}
+                                        activeOpacity={0.8}
+                                        onPress={() => router.push(`/chat/${profile.id}`)}
+                                    >
+                                        <View style={styles.onlineAvatarContainer}>
+                                            <Image
+                                                source={profile.avatar_url ? { uri: profile.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                                                style={styles.onlineAvatar}
+                                            />
+                                            {profile.is_verified && <View style={styles.onlineDot} />}
+                                        </View>
+                                        <Text style={styles.onlineName} numberOfLines={1}>
+                                            {profile.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    </View>
+                )}
 
                 {/* Conversations */}
                 <View style={styles.conversationsSection}>
                     <Text style={styles.sectionTitle}>会話</Text>
-                    {CONVERSATIONS.map((conv, index) => {
-                        const mainInstrument = INSTRUMENTS.find(
-                            (i) => i.id === conv.user.instruments[0]
-                        );
-                        return (
-                            <TouchableOpacity
-                                key={conv.user.id}
-                                style={styles.conversationItem}
-                                activeOpacity={0.7}
-                                onPress={() => Alert.alert('デモ画面', 'これはデザイン用のデモ画面です。実際のメッセージ交換は「マッチ」タブから行ってください。')}
-                            >
-                                <View style={styles.avatarContainer}>
-                                    <Image
-                                        source={{ uri: conv.user.imageUrl }}
-                                        style={styles.avatar}
-                                    />
-                                    {index < 2 && <View style={styles.onlineDotSmall} />}
-                                </View>
-                                <View style={styles.conversationContent}>
-                                    <View style={styles.conversationHeader}>
-                                        <View style={styles.nameWithInstrument}>
-                                            <Text style={styles.conversationName}>
-                                                {conv.user.name}
-                                            </Text>
-                                            <Text style={styles.instrumentEmoji}>
-                                                {mainInstrument?.icon}
+                    {activeMatches.length === 0 ? (
+                        <Text style={styles.emptyText}>メッセージはまだありません。</Text>
+                    ) : (
+                        activeMatches.map((match, index) => {
+                            const profile = match.otherProfile;
+                            const unreadCount = match.lastMessage && match.lastMessage.sender_id !== user?.id && !match.lastMessage.read_at ? 1 : 0;
+
+                            // 簡易的な時間表示
+                            const time = match.lastMessage ? new Date(match.lastMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+                            return (
+                                <TouchableOpacity
+                                    key={match.id}
+                                    style={styles.conversationItem}
+                                    activeOpacity={0.7}
+                                    onPress={() => router.push(`/chat/${profile.id}`)}
+                                >
+                                    <View style={styles.avatarContainer}>
+                                        <Image
+                                            source={profile.avatar_url ? { uri: profile.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                                            style={styles.avatar}
+                                        />
+                                        {profile.is_verified && <View style={styles.onlineDotSmall} />}
+                                    </View>
+                                    <View style={styles.conversationContent}>
+                                        <View style={styles.conversationHeader}>
+                                            <View style={styles.nameWithInstrument}>
+                                                <Text style={styles.conversationName}>
+                                                    {profile.name}
+                                                </Text>
+                                                {profile.instruments && profile.instruments.length > 0 && (
+                                                    <Text style={styles.instrumentEmoji}>
+                                                        🎵
+                                                    </Text>
+                                                )}
+                                            </View>
+                                            <Text
+                                                style={[
+                                                    styles.time,
+                                                    unreadCount > 0 && styles.timeActive,
+                                                ]}
+                                            >
+                                                {time}
                                             </Text>
                                         </View>
-                                        <Text
-                                            style={[
-                                                styles.time,
-                                                conv.unread > 0 && styles.timeActive,
-                                            ]}
-                                        >
-                                            {conv.time}
-                                        </Text>
+                                        <View style={styles.messageRow}>
+                                            <Text
+                                                style={[
+                                                    styles.lastMessage,
+                                                    unreadCount > 0 && styles.lastMessageUnread,
+                                                ]}
+                                                numberOfLines={1}
+                                            >
+                                                {match.lastMessage?.content || 'メッセージを送りましょう'}
+                                            </Text>
+                                            {unreadCount > 0 && (
+                                                <View style={styles.unreadBadge}>
+                                                    <Text style={styles.unreadText}>{unreadCount}</Text>
+                                                </View>
+                                            )}
+                                        </View>
                                     </View>
-                                    <View style={styles.messageRow}>
-                                        <Text
-                                            style={[
-                                                styles.lastMessage,
-                                                conv.unread > 0 && styles.lastMessageUnread,
-                                            ]}
-                                            numberOfLines={1}
-                                        >
-                                            {conv.lastMessage}
-                                        </Text>
-                                        {conv.unread > 0 && (
-                                            <View style={styles.unreadBadge}>
-                                                <Text style={styles.unreadText}>{conv.unread}</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    })}
+                                </TouchableOpacity>
+                            );
+                        })
+                    )}
                 </View>
 
                 {/* Premium upsell */}
@@ -187,6 +225,10 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: Colors.background,
+    },
+    loadingContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         flexDirection: 'row',
@@ -373,4 +415,9 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
         marginTop: 2,
     },
+    emptyText: {
+        textAlign: 'center',
+        color: Colors.textTertiary,
+        paddingVertical: Spacing.xl,
+    }
 });
