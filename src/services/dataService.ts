@@ -154,8 +154,8 @@ export const discoveryService = {
                 .eq('swiper_id', myUserId)
                 .returns<{ swiped_id: string }[]>();
 
-            const swipedIds = (swipedData?.map((s) => s.swiped_id) || [])
-                .filter((id) => UUID_REGEX.test(id));
+            const swipedIds = (swipedData?.map((s: { swiped_id: string }) => s.swiped_id) || [])
+                .filter((id: string) => UUID_REGEX.test(id));
             const excludeIds = [myUserId, ...swipedIds];
 
             let query = supabase
@@ -178,7 +178,7 @@ export const discoveryService = {
             if (!data) return [];
 
             // マッチングスコアを計算してソート
-            const scoredUsers = data.map((profile) => {
+            const scoredUsers = data.map((profile: Profile) => {
                 const theirTags = profile.tags || [];
                 const theirGenres = profile.genres || [];
                 const theirInstruments = profile.instruments || [];
@@ -214,11 +214,11 @@ export const discoveryService = {
             });
 
             const filtered = options?.radiusKm
-                ? scoredUsers.filter((p) => p.distance !== undefined && p.distance <= options.radiusKm!)
+                ? scoredUsers.filter((p: any) => p.distance !== undefined && p.distance <= options.radiusKm!)
                 : scoredUsers;
 
             // マッチスコア降順（同スコアなら距離昇順）
-            return filtered.sort((a, b) => {
+            return filtered.sort((a: any, b: any) => {
                 if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
                 return (a.distance || 9999) - (b.distance || 9999);
             });
@@ -461,7 +461,7 @@ export const messageService = {
                     table: 'messages',
                     filter: `match_id=eq.${matchId}`, // UUID検証済みのため安全
                 },
-                (payload) => {
+                (payload: any) => {
                     onMessage(payload.new as Message);
                 }
             )
