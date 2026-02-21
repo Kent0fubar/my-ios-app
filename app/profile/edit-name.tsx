@@ -14,6 +14,7 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { profileService } from '../../src/services/dataService';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
+import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 
 export default function EditNameScreen() {
     const { user, profile, refreshProfile } = useAuth();
@@ -54,12 +55,7 @@ export default function EditNameScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[Colors.background, Colors.backgroundSecondary]}
-                style={StyleSheet.absoluteFill}
-            />
-
+        <ScreenContainer>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.headerButton}>
@@ -99,15 +95,11 @@ export default function EditNameScreen() {
                     </Text>
                 </View>
             </View>
-        </View>
+        </ScreenContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',

@@ -7,6 +7,7 @@ import { withRateLimit, getRemainingSwipes } from '../lib/rateLimit';
 import { Profile, Match, Message } from '../types/database';
 import { locationService } from './locationService';
 import { File as ExpoFile } from 'expo-file-system';
+import { log } from '../lib/logger';
 
 // UUID形式のバリデーション（SQLインジェクション防止）
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -114,7 +115,7 @@ export const profileService = {
                     throw new Error('画像の読み込みに失敗しました（データが空です）');
                 }
             } catch (err: any) {
-                if (__DEV__) console.error('[DataService] File read failed:', err);
+                log.error('[DataService] File read failed', err, { fileUri });
                 throw new Error('画像の読み取りに失敗しました: ' + err.message);
             }
 
@@ -128,7 +129,7 @@ export const profileService = {
                 });
 
             if (error) {
-                if (__DEV__) console.error('[DataService] Supabase Storage error:', error);
+                log.error('[DataService] Supabase Storage upload error', error, { fileName });
                 throw error;
             }
 

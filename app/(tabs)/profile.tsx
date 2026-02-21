@@ -31,6 +31,8 @@ export default function ProfileScreen() {
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
 
+
+
     // 🛡️ 認証チェック（二重防御：タブレイアウトでもチェック済み）
     if (!isAuthenticated || !user) {
         router.replace('/login');

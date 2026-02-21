@@ -29,8 +29,14 @@ export const log = {
     debug: (...args: any[]) => consoleLogger.debug(...args),
     info: (...args: any[]) => consoleLogger.info(...args),
     warn: (...args: any[]) => consoleLogger.warn(...args),
-    error: (...args: any[]) => {
-        // Here you can also add logic to send errors to a remote server like Sentry, Crashlytics, etc.
-        consoleLogger.error(...args);
+    error: (message: string, error?: any, context?: any) => {
+        // 将来的に Sentry や Crashlytics にエラーを送信する処理をここに追加
+        // exemplo: Sentry.captureException(error, { extra: context });
+
+        if (error) {
+            consoleLogger.error(`${message} | Error: ${error.message || error}`, error, context || '');
+        } else {
+            consoleLogger.error(message, context || '');
+        }
     },
 };

@@ -22,6 +22,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { profileService } from '../../src/services/dataService';
 import { INSTRUMENTS } from '../../src/data/mockData';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
+import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 
 // ローカルの透過画像へのマッピング
 const LOCAL_ICONS: { [key: string]: any } = {
@@ -247,9 +248,7 @@ export default function EditInstrumentsScreen() {
     const isActuallyLoading = !profile;
 
     return (
-        <View style={styles.container}>
-            <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={StyleSheet.absoluteFill} />
-
+        <ScreenContainer>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.headerButton} disabled={isLoading}>
                     <Ionicons name="chevron-back" size={28} color={Colors.text} />
@@ -320,12 +319,11 @@ export default function EditInstrumentsScreen() {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </View>
+        </ScreenContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: Colors.background },
     loadingFull: { justifyContent: 'center', alignItems: 'center' },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', zIndex: 10 },
     headerButton: { width: 60, height: 40, alignItems: 'center', justifyContent: 'center' },

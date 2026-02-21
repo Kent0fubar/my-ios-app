@@ -97,8 +97,9 @@ const performOAuth = async (provider: 'apple' | 'google') => {
                 }
             }
         } else if (result.type !== 'cancel' && result.type !== 'dismiss') {
-            // キャンセル以外のWebBrowserのエラー
-            throw new Error(`ブラウザでの認証に失敗しました。(${result.type})`);
+            const errorMsg = `ブラウザでの認証に失敗しました。(${result.type})`;
+            log.error('[Auth] OAuth Browser Error', null, { result });
+            throw new Error(errorMsg);
         }
     } else {
         throw new Error('認証用のURLを取得できませんでした。設定を確認してください。');
@@ -187,7 +188,7 @@ export const authService = {
                     log.info('[Auth] Native Apple Auth cancelled by user.');
                     return null; // ユーザーキャンセル
                 }
-                log.error('[Auth] Native Apple Auth failed:', e);
+                log.error('[Auth] Native Apple Auth failed', e);
                 // 失敗した場合は OAuth へフォールバック
             }
         }

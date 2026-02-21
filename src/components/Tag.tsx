@@ -65,11 +65,12 @@ const styles = StyleSheet.create({
 interface InstrumentTagProps {
     icon: string;
     label: string;
+    backgroundColor?: string;
     style?: ViewStyle | ViewStyle[];
     textStyle?: TextStyle | TextStyle[];
 }
 
-export function InstrumentTag({ icon, label, style, textStyle }: InstrumentTagProps) {
+export function InstrumentTag({ icon, label, backgroundColor, style, textStyle }: InstrumentTagProps) {
     // ローカル優先ロジック: リモート参照を排除し、アプリ同梱の画像のみを使用
     // iconがURLであってもファイル名部分からローカルアセットを特定する
     const isUrl = icon && icon.startsWith('http');
@@ -88,8 +89,13 @@ export function InstrumentTag({ icon, label, style, textStyle }: InstrumentTagPr
     // アイコンの基本サイズ
     const iconBaseSize = 24;
 
+    const dynamicStyle = backgroundColor ? {
+        backgroundColor,
+        borderColor: 'rgba(255,255,255,0.1)',
+    } : {};
+
     return (
-        <View style={[styles.instrumentTag, style]}>
+        <View style={[styles.instrumentTag, dynamicStyle, style]}>
             <View style={styles.iconContainer}>
                 {localIcon ? (
                     <Image

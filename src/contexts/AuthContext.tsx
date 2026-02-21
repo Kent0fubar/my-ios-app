@@ -7,6 +7,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types/database';
 import { profileService } from '../services/dataService';
+import { log } from '../lib/logger';
 
 interface AuthContextType {
     session: Session | null;
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const p = await profileService.getMyProfile();
             setProfile(p);
         } catch (err) {
-            if (__DEV__) console.error('[Auth] Profile fetch error:', err);
+            log.error('[Auth] Profile fetch error', err);
         }
     }, []);
 
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 clearTimeout(safetyTimer);
             })
             .catch(err => {
-                if (__DEV__) console.error('[Auth] Initial session fetch error:', err);
+                log.error('[Auth] Initial session fetch error', err);
                 if (mounted) {
                     setIsLoading(false);
                     clearTimeout(safetyTimer);

@@ -239,6 +239,7 @@ function SwipeCard({
                             <Badge
                                 label={user.skill_level.toUpperCase()}
                                 variant="primary"
+                                backgroundColor={badgeBackground}
                             />
                         )}
                     </View>
@@ -251,6 +252,7 @@ function SwipeCard({
                                     key={instIdOrLabel}
                                     icon={instData?.icon || 'custom'}
                                     label={instData?.label || instIdOrLabel}
+                                    backgroundColor={badgeBackground}
                                 />
                             );
                         })}

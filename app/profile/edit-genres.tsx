@@ -15,6 +15,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { profileService } from '../../src/services/dataService';
 import { GENRES } from '../../src/data/mockData';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
+import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 
 export default function EditGenresScreen() {
     const { user, profile, refreshProfile } = useAuth();
@@ -64,12 +65,7 @@ export default function EditGenresScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <LinearGradient
-                colors={[Colors.background, Colors.backgroundSecondary]}
-                style={StyleSheet.absoluteFill}
-            />
-
+        <ScreenContainer>
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.headerButton}>
@@ -123,15 +119,11 @@ export default function EditGenresScreen() {
                     })}
                 </View>
             </ScrollView>
-        </View>
+        </ScreenContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
