@@ -27,6 +27,7 @@ import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme
 import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { discoveryService } from '../../src/services/dataService';
+import { locationService } from '../../src/services/locationService';
 import { Profile } from '../../src/types/database';
 import { Modal, Alert } from 'react-native';
 import { log } from '../../src/lib/logger';
@@ -219,9 +220,19 @@ export default function DiscoverScreen() {
         if (!currentUser) return;
         setIsLoading(true);
         try {
+            // 現在地のリアルタイム取得＆プロフィールへの緯度経度保存
+            const location = await locationService.updateProfileLocation(currentUser.id);
+            let lat = myProfile?.latitude || undefined;
+            let lon = myProfile?.longitude || undefined;
+
+            if (location) {
+                lat = location.latitude;
+                lon = location.longitude;
+            }
+
             const users = await discoveryService.getDiscoverUsers(currentUser.id, {
-                latitude: myProfile?.latitude || undefined,
-                longitude: myProfile?.longitude || undefined,
+                latitude: lat,
+                longitude: lon,
             });
             setDiscoverUsers(users);
             setCurrentIndex(0);
