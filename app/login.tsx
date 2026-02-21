@@ -22,15 +22,15 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
-import { authService } from '../../src/services/authService';
-import { useAuth } from '../../src/contexts/AuthContext';
+import { Colors, Spacing, FontSize, BorderRadius } from '../src/theme';
+import { authService } from '../src/services/authService';
+import { useAuth } from '../src/contexts/AuthContext';
 import {
     validateEmail,
     sanitizeEmail,
     getSecureAuthErrorMessage,
-} from '../../src/lib/security';
-import { ErrorBanner } from '../../src/components/ErrorBanner';
+} from '../src/lib/security';
+import { ErrorBanner } from '../src/components/ErrorBanner';
 
 export default function LoginScreen() {
     const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -221,7 +221,7 @@ export default function LoginScreen() {
                 {/* Forgot password */}
                 <TouchableOpacity
                     style={styles.forgotButton}
-                    onPress={() => router.push('/auth/reset-password')}
+                    onPress={() => router.push('/reset-password')}
                 >
                     <Text style={styles.forgotText}>パスワードをお忘れですか？</Text>
                 </TouchableOpacity>
@@ -278,7 +278,7 @@ export default function LoginScreen() {
                 {/* Signup link */}
                 <View style={styles.signupRow}>
                     <Text style={styles.signupText}>アカウントをお持ちでない方は</Text>
-                    <TouchableOpacity onPress={() => router.replace('/auth/signup')}>
+                    <TouchableOpacity onPress={() => router.replace('/signup')}>
                         <Text style={styles.signupLink}>新規登録</Text>
                     </TouchableOpacity>
                 </View>

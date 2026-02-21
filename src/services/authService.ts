@@ -7,15 +7,35 @@ import { withRateLimit } from '../lib/rateLimit';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+// Native modules are required dynamically to prevent crashes in Expo Go
+let GoogleSignin: any;
+try {
+    if (Platform.OS !== 'web') {
+        // We use a temporary variable to avoid TS errors with dynamic require if needed, 
+        // but here we just want to ensure it's not loaded at top level in Expo Go if possible.
+    }
+} catch (e) { }
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// Google Sign-In の初期設定
-GoogleSignin.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-});
+// 開発環境（Expo Go）かネイティブアプリかを判定
+let isExpoGo = Constants.executionEnvironment === 'storeClient';
+let isNative = (Platform.OS === 'ios' || Platform.OS === 'android') && !isExpoGo;
+
+// Google Sign-In の初期設定 (ネイティブ環境のみ)
+if (isNative) {
+    try {
+        const { GoogleSignin: GS } = require('@react-native-google-signin/google-signin');
+        GoogleSignin = GS;
+        GoogleSignin.configure({
+            webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+            iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+        });
+    } catch (e) {
+        console.warn('[Auth] GoogleSignin initialization failed:', e);
+        isNative = false; // Fallback to OAuth
+    }
+}
 
 // Ensure the browser session is correctly handled on web
 WebBrowser.maybeCompleteAuthSession();
@@ -134,8 +154,6 @@ export const authService = {
      * Apple ID でログイン（iOS向けネイティブ / 他はOAuth）
      */
     async signInWithApple() {
-        // 開発環境（Expo Go）かネイティブアプリかを判定
-        const isExpoGo = Constants.executionEnvironment === 'storeClient';
         const isNativeIos = Platform.OS === 'ios' && !isExpoGo;
 
         console.log('[Auth] signInWithApple - Environment:', { isExpoGo, isNativeIos });
@@ -181,8 +199,6 @@ export const authService = {
      * Google でログイン（iOS/Androidネイティブ / 他はOAuth）
      */
     async signInWithGoogle() {
-        const isExpoGo = Constants.executionEnvironment === 'storeClient';
-        const isNative = (Platform.OS === 'ios' || Platform.OS === 'android') && !isExpoGo;
 
         console.log('[Auth] signInWithGoogle - Environment:', { isExpoGo, isNative });
 

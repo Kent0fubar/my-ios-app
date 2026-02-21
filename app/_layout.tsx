@@ -17,9 +17,9 @@ export default function RootLayout() {
                     }}
                 >
                     <Stack.Screen name="index" />
-                    <Stack.Screen name="auth/login" />
-                    <Stack.Screen name="auth/signup" />
-                    <Stack.Screen name="auth/reset-password" />
+                    <Stack.Screen name="login" />
+                    <Stack.Screen name="signup" />
+                    <Stack.Screen name="reset-password" />
                     <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
                     <Stack.Screen
                         name="premium"

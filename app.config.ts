@@ -29,9 +29,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     const version = '1.0.0';
     const buildNumber = '1';
 
-    return {
+    const finalConfig: ExpoConfig = {
         ...config,
-        name: environmentConfig.name, // 環境固有の名前を優先
+        name: environmentConfig.name,
         slug: 'bandlink',
         version,
         ios: {
@@ -45,15 +45,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             package: environmentConfig.package,
         },
         extra: {
-            // expo-router用やその他の設定
+            ...(config.extra || {}),
+            ...environmentConfig,
             router: {
-                origin: false,
+                origin: "https://bandlink.app",
             },
             eas: {
-                // eas build:configure で取得したプロジェクトIDを設定
-                projectId: "6275ca9a-0e0f-40f4-b66b-ca251124475a"
+                projectId: "6275ca9a-0e0f-40f4-b66b-ca251124475a",
             },
-            ...environmentConfig,
         },
     };
+
+    return finalConfig;
 };

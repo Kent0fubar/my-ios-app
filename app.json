@@ -83,7 +83,9 @@
       ],
       [
         "@react-native-google-signin/google-signin"
-      ]
+      ],
+      "expo-web-browser",
+      "expo-asset"
     ]
   }
 }

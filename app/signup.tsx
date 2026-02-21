@@ -23,8 +23,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
-import { authService } from '../../src/services/authService';
+import { Colors, Spacing, FontSize, BorderRadius } from '../src/theme';
+import { authService } from '../src/services/authService';
 import {
     validateEmail,
     validatePassword,
@@ -34,8 +34,8 @@ import {
     sanitizeName,
     getPasswordStrength,
     getSecureAuthErrorMessage,
-} from '../../src/lib/security';
-import { ErrorBanner } from '../../src/components/ErrorBanner';
+} from '../src/lib/security';
+import { ErrorBanner } from '../src/components/ErrorBanner';
 
 export default function SignupScreen() {
     const [name, setName] = useState('');
@@ -132,7 +132,7 @@ export default function SignupScreen() {
                     <TouchableOpacity
                         style={styles.backToLoginButton}
                         activeOpacity={0.8}
-                        onPress={() => router.replace('/auth/login')}
+                        onPress={() => router.replace('/login')}
                     >
                         <LinearGradient
                             colors={[Colors.primary, Colors.secondary]}
@@ -375,7 +375,7 @@ export default function SignupScreen() {
                 {/* Login link */}
                 <View style={styles.loginRow}>
                     <Text style={styles.loginText}>すでにアカウントをお持ちの方は</Text>
-                    <TouchableOpacity onPress={() => router.replace('/auth/login')}>
+                    <TouchableOpacity onPress={() => router.replace('/login')}>
                         <Text style={styles.loginLink}>ログイン</Text>
                     </TouchableOpacity>
                 </View>

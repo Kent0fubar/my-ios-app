@@ -88,12 +88,12 @@ export default function OnboardingScreen() {
             animateTransition(currentPage + 1);
         } else {
             // 未ログインの場合は認証画面へ
-            router.push('/auth/login');
+            router.push('/login');
         }
     };
 
     const handleSkip = () => {
-        router.push('/auth/login');
+        router.push('/login');
     };
 
     // ローディング中

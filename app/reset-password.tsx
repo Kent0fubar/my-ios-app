@@ -18,14 +18,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
-import { authService } from '../../src/services/authService';
+import { Colors, Spacing, FontSize, BorderRadius } from '../src/theme';
+import { authService } from '../src/services/authService';
 import {
     validateEmail,
     sanitizeEmail,
     getSecureAuthErrorMessage,
-} from '../../src/lib/security';
-import { ErrorBanner } from '../../src/components/ErrorBanner';
+} from '../src/lib/security';
+import { ErrorBanner } from '../src/components/ErrorBanner';
 
 export default function ResetPasswordScreen() {
     const [email, setEmail] = useState('');
@@ -86,7 +86,7 @@ export default function ResetPasswordScreen() {
                     <TouchableOpacity
                         style={styles.backButtonFull}
                         activeOpacity={0.8}
-                        onPress={() => router.replace('/auth/login')}
+                        onPress={() => router.replace('/login')}
                     >
                         <LinearGradient
                             colors={[Colors.primary, Colors.secondary]}

@@ -38,7 +38,7 @@ export default function TabLayout() {
     // 🛡️ 認証ガード: 未認証ユーザーはログイン画面へリダイレクト
     // URLを直接入力してもアクセス不可
     if (!isAuthenticated) {
-        return <Redirect href="/auth/login" />;
+        return <Redirect href="/login" />;
     }
 
     return (

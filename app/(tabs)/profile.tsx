@@ -23,7 +23,7 @@ export default function ProfileScreen() {
 
     // 🛡️ 認証チェック（二重防御：タブレイアウトでもチェック済み）
     if (!isAuthenticated || !user) {
-        router.replace('/auth/login');
+        router.replace('/login');
         return null;
     }
 
@@ -52,7 +52,7 @@ export default function ProfileScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         await authService.signOut();
-                        router.replace('/auth/login');
+                        router.replace('/login');
                     },
                 },
             ]
