@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Image,
     Alert,
     TextInput,
     ActivityIndicator,
+    Share,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
@@ -24,13 +25,35 @@ import { profileService } from '../../src/services/dataService';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { Badge } from '../../src/components/common/Badge';
 
+/**
+ * 生年月日から年齢を計算する
+ */
+const calculateAge = (birthdayStr: string | null) => {
+    if (!birthdayStr) return null;
+    const birthDate = new Date(birthdayStr);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+};
+
 export default function ProfileScreen() {
     const { user, profile, isAuthenticated, refreshProfile } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [isImageLoading, setIsImageLoading] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+    const [stats, setStats] = useState({ likes: 0, matches: 0, views: 0 });
 
-
+    useFocusEffect(
+        useCallback(() => {
+            if (user?.id) {
+                profileService.getStats(user.id).then(setStats).catch(console.error);
+            }
+        }, [user?.id])
+    );
 
 
     // 🛡️ 認証チェック（二重防御：タブレイアウトでもチェック済み）
@@ -51,7 +74,14 @@ export default function ProfileScreen() {
         imageUrl: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
         isPremium: profile?.is_premium || false,
         tags: (profile as any)?.tags || [],
+        birthday: profile?.birthday || null,
+        birthdayHidden: profile?.birthday_hidden || false,
     };
+
+    // 年齢を動的に計算（birthdayがあれば優先、なければ既存のageフィールドを使用）
+    const displayAge = displayProfile.birthday
+        ? calculateAge(displayProfile.birthday)
+        : displayProfile.age;
 
     const handleLogout = () => {
         Alert.alert(
@@ -121,6 +151,28 @@ export default function ProfileScreen() {
         }
     };
 
+    const handleShareProfile = async () => {
+        try {
+            // プロフィールのWebリンク等（現在はダミーURL）
+            const profileUrl = `https://bandlink.app/profile/${user?.id || 'demo'}`;
+            const message = `${displayProfile.name}のプロフィールをBandLinkでチェックしよう！🎶\n${profileUrl}`;
+
+            const result = await Share.share({
+                message,
+                url: profileUrl, // iOSでのリンク共有用
+                title: 'BandLink プロフィールを共有'
+            });
+
+            if (result.action === Share.sharedAction) {
+                if (__DEV__) console.log('Shared successfully', result.activityType || '');
+            } else if (result.action === Share.dismissedAction) {
+                if (__DEV__) console.log('Share dismissed');
+            }
+        } catch (error: any) {
+            Alert.alert('エラー', 'プロフィールの共有に失敗しました。');
+        }
+    };
+
     // タグの表示情報を取得
     const getTagDisplay = (tagId: string) => {
         const preset = TAGS.find(t => t.id === tagId);
@@ -168,8 +220,8 @@ export default function ProfileScreen() {
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                     >
-                        {/* Avatar */}
-                        <View style={styles.avatarSection}>
+                        {/* avatarSection and nameSection combined into a more cohesive block */}
+                        <View style={styles.mainInfoSection}>
                             <View style={styles.avatarContainer}>
                                 <LinearGradient
                                     colors={displayProfile.isPremium ? [Colors.gold, Colors.goldGradientEnd] : [Colors.primary, Colors.secondary]}
@@ -181,6 +233,8 @@ export default function ProfileScreen() {
                                         <Image
                                             source={{ uri: avatarPreview || displayProfile.imageUrl }}
                                             style={styles.avatar}
+                                            contentFit="cover"
+                                            transition={200}
                                         />
                                         {isImageLoading && (
                                             <View style={styles.avatarLoadingOverlay}>
@@ -198,47 +252,76 @@ export default function ProfileScreen() {
                                 </TouchableOpacity>
                             </View>
 
-                            <View style={styles.nameSection}>
-                                <View style={styles.nameRow}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, flexWrap: 'wrap' }}>
-                                        <Text style={styles.name} numberOfLines={1}>{displayProfile.name}</Text>
-                                        {displayProfile.isPremium && (
-                                            <Badge label="PREMIUM" variant="premium" icon="star" />
+                            <View style={styles.basicInfoContainer}>
+                                <View style={styles.nameAgeRow}>
+                                    <Text style={styles.nameText} numberOfLines={1}>{displayProfile.name}</Text>
+                                    <View style={styles.ageBadge}>
+                                        <Text style={styles.ageBadgeText}>
+                                            {displayProfile.birthdayHidden ? '非公開' : (displayAge || '??')}
+                                        </Text>
+                                        {displayProfile.birthdayHidden && (
+                                            <Ionicons name="eye-off" size={12} color={Colors.textTertiary} />
                                         )}
-                                        <TouchableOpacity onPress={() => router.push('/profile/edit-name')} style={styles.miniEditButton}>
-                                            <Ionicons name="pencil" size={12} color={Colors.primary} />
-                                        </TouchableOpacity>
                                     </View>
-                                </View>
-                                <View style={styles.badgeRow}>
-                                    {displayProfile.age && (
-                                        <Badge label={`${displayProfile.age}歳`} icon="calendar-outline" variant="glass" />
-                                    )}
-                                    <Badge label={displayProfile.location} icon="location-outline" variant="glass" />
-                                    <TouchableOpacity onPress={() => router.push('/profile/edit-location')} style={styles.miniEditButton}>
-                                        <Ionicons name="pencil" size={12} color={Colors.primary} />
+                                    <TouchableOpacity
+                                        onPress={() => router.push('/profile/edit-info')}
+                                        style={styles.infoEditButton}
+                                    >
+                                        <Ionicons name="pencil" size={14} color={Colors.primary} />
                                     </TouchableOpacity>
                                 </View>
+
+                                <TouchableOpacity
+                                    style={styles.locationLink}
+                                    onPress={() => router.push('/profile/edit-location')}
+                                >
+                                    <Ionicons name="location" size={14} color={Colors.textTertiary} />
+                                    <Text style={styles.locationLinkText}>{displayProfile.location}</Text>
+                                </TouchableOpacity>
+
+                                {displayProfile.isPremium && (
+                                    <View style={{ marginTop: 4 }}>
+                                        <Badge label="PREMIUM" variant="premium" icon="star" />
+                                    </View>
+                                )}
                             </View>
                         </View>
+
+                        {/* Bio Section - Connected to Basic Info */}
+                        <TouchableOpacity
+                            style={styles.unifiedBioSection}
+                            onPress={() => router.push('/profile/edit-info')}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.bioHeader}>
+                                <Text style={styles.bioLabel}>自己紹介</Text>
+                            </View>
+                            <Text style={styles.bioPreviewText} numberOfLines={3}>
+                                {displayProfile.bio || '自己紹介が未設定です。タップして追加しましょう。'}
+                            </Text>
+                        </TouchableOpacity>
 
                         {/* Stats */}
                         <View style={styles.statsRow}>
                             <View style={styles.statItem}>
-                                <Text style={styles.statNumber}>-</Text>
+                                <Text style={styles.statNumber}>{stats.likes}</Text>
                                 <Text style={styles.statLabel}>いいね</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
-                                <Text style={styles.statNumber}>-</Text>
+                                <Text style={styles.statNumber}>{stats.matches}</Text>
                                 <Text style={styles.statLabel}>マッチ</Text>
                             </View>
                             <View style={styles.statDivider} />
                             <View style={styles.statItem}>
-                                <View style={styles.lockedStat}>
-                                    <Ionicons name="lock-closed" size={14} color={Colors.gold} />
-                                    <Text style={[styles.statNumber, { color: Colors.gold }]}>?</Text>
-                                </View>
+                                {displayProfile.isPremium ? (
+                                    <Text style={[styles.statNumber, { color: Colors.gold }]}>{stats.views}</Text>
+                                ) : (
+                                    <View style={styles.lockedStat}>
+                                        <Ionicons name="lock-closed" size={14} color={Colors.gold} />
+                                        <Text style={[styles.statNumber, { color: Colors.gold }]}>?</Text>
+                                    </View>
+                                )}
                                 <Text style={styles.statLabel}>閲覧数</Text>
                             </View>
                         </View>
@@ -270,16 +353,7 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* Bio */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>自己紹介</Text>
-                        <TouchableOpacity onPress={() => router.push('/profile/edit-bio')}>
-                            <Ionicons name="pencil" size={16} color={Colors.primary} />
-                        </TouchableOpacity>
-                    </View>
-                    <Text style={styles.bioText}>{displayProfile.bio}</Text>
-                </View>
+
 
                 {/* Instruments */}
                 <View style={styles.section}>
@@ -384,7 +458,7 @@ export default function ProfileScreen() {
 
                 {/* Actions */}
                 <View style={styles.actionsSection}>
-                    <TouchableOpacity style={styles.actionItem}>
+                    <TouchableOpacity style={styles.actionItem} onPress={handleShareProfile}>
                         <Ionicons name="share-outline" size={20} color={Colors.text} />
                         <Text style={styles.actionText}>プロフィールを共有</Text>
                         <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
@@ -402,8 +476,8 @@ export default function ProfileScreen() {
                 </View>
 
                 <Text style={styles.version}>BandLink v1.0.0</Text>
-            </ScrollView>
-        </ScreenContainer>
+            </ScrollView >
+        </ScreenContainer >
     );
 }
 
@@ -443,11 +517,6 @@ const styles = StyleSheet.create({
         padding: Spacing.lg,
         gap: Spacing.lg,
     },
-    avatarSection: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.lg,
-    },
     avatarContainer: {
         position: 'relative',
     },
@@ -484,33 +553,81 @@ const styles = StyleSheet.create({
         borderColor: Colors.background,
         ...Shadow.sm,
     },
-    nameSection: {
+    mainInfoSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.lg,
+    },
+    basicInfoContainer: {
         flex: 1,
+        gap: 6,
+    },
+    nameAgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
     },
-    nameRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    name: {
-        fontSize: FontSize.xxl,
+    nameText: {
+        fontSize: FontSize.xl,
         fontWeight: '800',
         color: Colors.text,
+        flexShrink: 1,
     },
-    badgeRow: {
+    ageBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: Spacing.xs,
+        paddingVertical: 2,
+        gap: 4,
     },
-    miniEditButton: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    ageBadgeText: {
+        fontSize: FontSize.lg,
+        fontWeight: '700',
+        color: Colors.textSecondary,
+    },
+    infoEditButton: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'rgba(212, 175, 55, 0.1)',
         alignItems: 'center',
         justifyContent: 'center',
+        marginLeft: 'auto',
+    },
+    locationLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    locationLinkText: {
+        fontSize: FontSize.sm,
+        color: Colors.textTertiary,
+        textDecorationLine: 'underline',
+    },
+    unifiedBioSection: {
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.md,
+        marginTop: Spacing.xs,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    bioHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    bioLabel: {
+        fontSize: FontSize.xs,
+        fontWeight: '700',
+        color: Colors.textTertiary,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    bioPreviewText: {
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
+        lineHeight: 20,
     },
     statsRow: {
         flexDirection: 'row',
@@ -537,6 +654,12 @@ const styles = StyleSheet.create({
         width: 1,
         height: 30,
         backgroundColor: Colors.surfaceBorder,
+    },
+    cardBioSection: {
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.md,
+        marginTop: Spacing.xs,
     },
     lockedStat: {
         flexDirection: 'row',
@@ -690,5 +813,21 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    hiddenInfoBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    hiddenInfoText: {
+        fontSize: 11,
+        color: Colors.textTertiary,
+        fontWeight: '600',
     },
 });

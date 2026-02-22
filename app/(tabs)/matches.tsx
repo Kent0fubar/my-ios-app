@@ -5,10 +5,10 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Image,
     ActivityIndicator,
     RefreshControl,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -105,6 +105,8 @@ export default function MatchesScreen() {
                                             <Image
                                                 source={p.avatar_url ? { uri: p.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
                                                 style={styles.newMatchImage}
+                                                contentFit="cover"
+                                                transition={200}
                                             />
                                         </LinearGradient>
                                         <Text style={styles.newMatchName}>{p.name}</Text>
@@ -141,6 +143,8 @@ export default function MatchesScreen() {
                                         <Image
                                             source={p.avatar_url ? { uri: p.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
                                             style={styles.matchAvatar}
+                                            contentFit="cover"
+                                            transition={200}
                                         />
                                         {p.is_online && <View style={styles.onlineBadge} />}
                                     </View>

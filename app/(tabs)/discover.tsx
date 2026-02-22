@@ -1,21 +1,23 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     Dimensions,
     TouchableOpacity,
-    Image,
     ActivityIndicator,
+    Pressable,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import ImageColors from 'react-native-image-colors';
 import { router } from 'expo-router';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
+    withSequence,
+    withTiming,
     interpolate,
     Extrapolation,
     runOnJS,
@@ -32,7 +34,7 @@ import { locationService } from '../../src/services/locationService';
 import { Profile } from '../../src/types/database';
 import { Modal, Alert } from 'react-native';
 import { log } from '../../src/lib/logger';
-import { INSTRUMENTS, GENRES } from '../../src/data/mockData';
+import { INSTRUMENTS, GENRES, SKILL_LEVELS } from '../../src/data/mockData';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { Badge } from '../../src/components/common/Badge';
 import { EmptyState } from '../../src/components/common/EmptyState';
@@ -50,7 +52,13 @@ const SPRING_CONFIG = {
     restSpeedThreshold: 0.01,
 };
 
-function SwipeCard({
+export type SwipeCardRef = {
+    swipeLeft: () => void;
+    swipeRight: () => void;
+    swipeUp: () => void;
+};
+
+const SwipeCard = forwardRef(({
     user,
     isFirst,
     onSwipeLeft,
@@ -62,45 +70,34 @@ function SwipeCard({
     onSwipeLeft: () => void;
     onSwipeRight: () => void;
     onSuperLike: () => void;
-}) {
+}, ref) => {
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
-    const [primaryColor, setPrimaryColor] = useState('rgba(0,0,0,0.7)');
+    const cardScale = useSharedValue(1);
 
-    useEffect(() => {
-        let isMounted = true;
-        const fetchColors = async () => {
-            const uri = user.avatar_url || DEFAULT_AVATAR;
-            try {
-                const result = await ImageColors.getColors(uri, {
-                    fallback: '#000000',
-                    cache: true,
-                    key: uri,
-                });
+    useImperativeHandle(ref, () => ({
+        swipeLeft: () => {
+            translateX.value = withSpring(-width * 1.5, SPRING_CONFIG, (finished) => {
+                if (finished) runOnJS(onSwipeLeft)();
+            });
+        },
+        swipeRight: () => {
+            // マッチタブ（画面下部やや左）に向かって飛んでいく演出
+            translateX.value = withTiming(-width * 0.15, { duration: 300 });
+            translateY.value = withTiming(height / 2, { duration: 300 });
+            cardScale.value = withTiming(0.1, { duration: 300 }, (finished) => {
+                if (finished) runOnJS(onSwipeRight)();
+            });
+        },
+        swipeUp: () => {
+            translateY.value = withSpring(-height, SPRING_CONFIG, (finished) => {
+                if (finished) runOnJS(onSuperLike)();
+            });
+        },
+    }));
 
-                if (!isMounted) return;
-
-                let primaryColor = 'rgba(0,0,0,0.7)';
-                if (result.platform === 'ios') {
-                    primaryColor = result.detail;
-                } else if (result.platform === 'android') {
-                    primaryColor = result.dominant || result.vibrant || '#000000';
-                }
-
-                setPrimaryColor(primaryColor);
-            } catch (e) {
-                // 静かにフォールバック
-            }
-        };
-
-        fetchColors();
-        return () => { isMounted = false; };
-    }, [user.avatar_url]);
-
-    // 背景色（フォールバック考慮）
-    const badgeBackground = primaryColor.includes('rgba')
-        ? primaryColor
-        : `${primaryColor}CC`;
+    // バッジやタグ用の固定背景色（可読性重視）
+    const badgeBackground = 'rgba(255, 255, 255, 0.15)';
     const badgeText = Colors.text;
 
     const panGesture = Gesture.Pan()
@@ -111,8 +108,10 @@ function SwipeCard({
         })
         .onEnd((event) => {
             if (event.translationX > SWIPE_THRESHOLD || event.velocityX > 800) {
-                // LIKE
-                translateX.value = withSpring(width * 1.5, SPRING_CONFIG, (finished) => {
+                // LIKE (マッチタブに向かって飛んでいく)
+                translateX.value = withTiming(-width * 0.15, { duration: 300 });
+                translateY.value = withTiming(height / 2, { duration: 300 });
+                cardScale.value = withTiming(0.1, { duration: 300 }, (finished) => {
                     if (finished) runOnJS(onSwipeRight)();
                 });
             } else if (event.translationX < -SWIPE_THRESHOLD || event.velocityX < -800) {
@@ -140,7 +139,7 @@ function SwipeCard({
             Extrapolation.CLAMP
         );
 
-        const scale = isFirst ? 1 : interpolate(
+        const scale = isFirst ? cardScale.value : interpolate(
             Math.abs(translateX.value),
             [0, width / 2],
             [0.92, 1],
@@ -169,117 +168,120 @@ function SwipeCard({
     return (
         <GestureDetector gesture={panGesture}>
             <Animated.View style={[styles.card, animatedStyle]}>
-                <Image
-                    source={{ uri: user.avatar_url || DEFAULT_AVATAR }}
-                    style={styles.cardImage}
-                />
-
-                <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.85)']}
-                    locations={[0.3, 0.55, 1]}
-                    style={styles.cardGradient}
-                />
-
-                {isFirst && (
-                    <>
-                        <Animated.View style={[styles.stampContainer, styles.likeStamp, likeOpacityStyle]}>
-                            <Text style={[styles.stampText, { color: Colors.like }]}>LIKE</Text>
-                        </Animated.View>
-                        <Animated.View style={[styles.stampContainer, styles.nopeStamp, nopeOpacityStyle]}>
-                            <Text style={[styles.stampText, { color: Colors.nope }]}>NOPE</Text>
-                        </Animated.View>
-                    </>
-                )}
-
-                {user.is_premium && (
-                    <Badge
-                        label="PRO"
-                        icon="star"
-                        variant="premium"
-                        style={styles.premiumBadge}
-                    />
-                )}
-
-                {user.matchScore !== undefined && user.matchScore > 0 && (
-                    <LinearGradient
-                        colors={[Colors.primary, Colors.secondary]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.matchScoreBadge}
-                    >
-                        <Ionicons name="sparkles" size={12} color="#fff" />
-                        <Text style={styles.matchScoreText}>{user.matchScore}% Match</Text>
-                    </LinearGradient>
-                )}
-
-                <View style={styles.cardContent}>
-                    <View style={styles.nameRow}>
-                        <Text style={styles.userName}>{user.name}</Text>
-                        {user.age && (
-                            <Badge
-                                label={user.age}
-                                variant="glass"
-                                backgroundColor={badgeBackground}
-                            />
-                        )}
-                        {user.is_verified && (
-                            <Ionicons name="checkmark-circle" size={20} color={Colors.accent} />
-                        )}
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Badge
-                            label={`${user.location || '不明'} ${user.distance !== undefined ? `• ${user.distance.toFixed(1)}km` : ''}`}
-                            icon="location-outline"
-                            variant="glass"
-                            backgroundColor={badgeBackground}
+                <View style={styles.cardInner}>
+                    <View style={{ flex: 1, width: '100%', position: 'relative' }}>
+                        <Image
+                            source={{ uri: user.avatar_url || DEFAULT_AVATAR }}
+                            style={styles.cardImage}
+                            contentFit="cover"
+                            transition={200}
                         />
-
-                        {user.skill_level && (
-                            <Badge
-                                label={user.skill_level.toUpperCase()}
-                                variant="primary"
-                                backgroundColor={badgeBackground}
-                            />
-                        )}
+                        {/* 画像の下部境界をぼかしてテキストエリアに完全に溶け込ませるためのグラデーション */}
+                        <LinearGradient
+                            colors={['transparent', Colors.card]}
+                            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 120 }}
+                        />
                     </View>
 
-                    <View style={styles.tagRow}>
-                        {user.instruments?.slice(0, 3).map((instIdOrLabel) => {
-                            const instData = INSTRUMENTS.find(i => i.id === instIdOrLabel || i.label === instIdOrLabel);
-                            return (
-                                <InstrumentTag
-                                    key={instIdOrLabel}
-                                    icon={instData?.icon || 'custom'}
-                                    label={instData?.label || instIdOrLabel}
+                    {isFirst && (
+                        <>
+                            <Animated.View style={[styles.stampContainer, styles.likeStamp, likeOpacityStyle]}>
+                                <Text style={[styles.stampText, { color: Colors.like }]}>LIKE</Text>
+                            </Animated.View>
+                            <Animated.View style={[styles.stampContainer, styles.nopeStamp, nopeOpacityStyle]}>
+                                <Text style={[styles.stampText, { color: Colors.nope }]}>NOPE</Text>
+                            </Animated.View>
+                        </>
+                    )}
+
+                    {user.is_premium && (
+                        <Badge
+                            label="PRO"
+                            icon="star"
+                            variant="premium"
+                            style={styles.premiumBadge}
+                        />
+                    )}
+
+                    {user.matchScore !== undefined && user.matchScore > 0 && (
+                        <LinearGradient
+                            colors={[Colors.primary, Colors.secondary]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.matchScoreBadge}
+                        >
+                            <Ionicons name="sparkles" size={12} color="#fff" />
+                            <Text style={styles.matchScoreText}>{user.matchScore}% Match</Text>
+                        </LinearGradient>
+                    )}
+
+                    <View style={[styles.cardContent]}>
+                        <View style={styles.nameRow}>
+                            <Text style={styles.userName}>{user.name}</Text>
+                            {user.age && (
+                                <Text style={styles.userAge}>{user.age}</Text>
+                            )}
+                            {user.is_verified && (
+                                <Ionicons name="checkmark-circle" size={20} color={Colors.accent} />
+                            )}
+                            {(user.location || user.distance !== undefined) && (
+                                <View style={styles.locationContainer}>
+                                    <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
+                                    <Text style={styles.locationText}>
+                                        {`${user.location || '不明'}${user.distance !== undefined ? ` • ${user.distance.toFixed(1)}km` : ''}`}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.infoRow}>
+
+                            {user.skill_level && (
+                                <Badge
+                                    label={SKILL_LEVELS.find(s => s.id === user.skill_level)?.label || user.skill_level.toUpperCase()}
+                                    variant="primary"
                                     backgroundColor={badgeBackground}
                                 />
-                            );
-                        })}
-                    </View>
+                            )}
+                        </View>
 
-                    <View style={styles.tagRow}>
-                        {user.genres?.slice(0, 4).map((genreIdOrLabel) => {
-                            const genreData = GENRES.find(g => g.id === genreIdOrLabel || g.label === genreIdOrLabel);
-                            return (
-                                <GenreTag
-                                    key={genreIdOrLabel}
-                                    label={genreData?.label || genreIdOrLabel}
-                                    color={genreData?.color || Colors.primary}
-                                    opacity="30"
-                                />
-                            );
-                        })}
-                    </View>
+                        <View style={styles.tagRow}>
+                            {user.instruments?.slice(0, 3).map((instIdOrLabel) => {
+                                const instData = INSTRUMENTS.find(i => i.id === instIdOrLabel || i.label === instIdOrLabel);
+                                return (
+                                    <InstrumentTag
+                                        key={instIdOrLabel}
+                                        icon={instData?.icon || 'custom'}
+                                        label={instData?.label || instIdOrLabel}
+                                        backgroundColor={badgeBackground}
+                                    />
+                                );
+                            })}
+                        </View>
 
-                    <Text style={styles.bio} numberOfLines={2}>
-                        {user.bio || '自己紹介はありません'}
-                    </Text>
+                        <View style={styles.tagRow}>
+                            {user.genres?.slice(0, 4).map((genreIdOrLabel) => {
+                                const genreData = GENRES.find(g => g.id === genreIdOrLabel || g.label === genreIdOrLabel);
+                                return (
+                                    <GenreTag
+                                        key={genreIdOrLabel}
+                                        label={genreData?.label || genreIdOrLabel}
+                                        color={genreData?.color || Colors.primary}
+                                        opacity="30"
+                                    />
+                                );
+                            })}
+                        </View>
+
+                        <Text style={styles.bio} numberOfLines={2}>
+                            {user.bio || '自己紹介はありません'}
+                        </Text>
+                    </View>
                 </View>
             </Animated.View>
         </GestureDetector>
     );
-}
+});
 
 export default function DiscoverScreen() {
     const { user: currentUser, profile: myProfile } = useAuth();
@@ -287,6 +289,14 @@ export default function DiscoverScreen() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [matchData, setMatchData] = useState<{ matchId: string; opponent: Profile } | null>(null);
+
+    const cardRef = React.useRef<SwipeCardRef>(null);
+
+    // LIKEボタンのアニメーション用
+    const globalLikeScale = useSharedValue(1);
+    const globalLikeStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: globalLikeScale.value }]
+    }));
 
     const fetchUsers = useCallback(async () => {
         if (!currentUser) return;
@@ -322,6 +332,14 @@ export default function DiscoverScreen() {
     const handleSwipe = useCallback(async (direction: 'like' | 'nope' | 'superlike') => {
         if (!currentUser || currentIndex >= discoverUsers.length) return;
 
+        // LIKEの時はボタンをポップさせる
+        if (direction === 'like') {
+            globalLikeScale.value = withSequence(
+                withTiming(1.3, { duration: 150 }),
+                withSpring(1, { damping: 8, stiffness: 200 })
+            );
+        }
+
         const swipedUser = discoverUsers[currentIndex];
         setCurrentIndex((prev) => prev + 1);
 
@@ -355,9 +373,29 @@ export default function DiscoverScreen() {
         }
     }, [currentUser, discoverUsers, currentIndex, myProfile]);
 
-    const handleSwipeLeft = () => handleSwipe('nope');
-    const handleSwipeRight = () => handleSwipe('like');
-    const handleSuperLike = () => handleSwipe('superlike');
+    const handleSwipeLeft = () => {
+        if (cardRef.current) {
+            cardRef.current.swipeLeft();
+        } else {
+            handleSwipe('nope');
+        }
+    };
+
+    const handleSwipeRight = () => {
+        if (cardRef.current) {
+            cardRef.current.swipeRight();
+        } else {
+            handleSwipe('like');
+        }
+    };
+
+    const handleSuperLike = () => {
+        if (cardRef.current) {
+            cardRef.current.swipeUp();
+        } else {
+            handleSwipe('superlike');
+        }
+    };
 
     const remainingUsers = discoverUsers.slice(currentIndex);
 
@@ -374,14 +412,10 @@ export default function DiscoverScreen() {
         <ScreenContainer>
             <View style={styles.header}>
                 <View style={styles.logoContainer}>
-                    <LinearGradient
-                        colors={[Colors.primary, Colors.secondary]}
-                        style={styles.logoGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                    >
-                        <Ionicons name="musical-notes" size={20} color="#fff" />
-                    </LinearGradient>
+                    <Image
+                        source={require('../../assets/icon.png')}
+                        style={styles.logoImage}
+                    />
                     <Text style={styles.logoText}>BandLink</Text>
                 </View>
                 <View style={styles.headerRight}>
@@ -414,11 +448,12 @@ export default function DiscoverScreen() {
                             return (
                                 <SwipeCard
                                     key={user.id}
+                                    ref={isFirst ? cardRef : null}
                                     user={user}
                                     isFirst={isFirst}
-                                    onSwipeLeft={handleSwipeLeft}
-                                    onSwipeRight={handleSwipeRight}
-                                    onSuperLike={handleSuperLike}
+                                    onSwipeLeft={() => handleSwipe('nope')}
+                                    onSwipeRight={() => handleSwipe('like')}
+                                    onSuperLike={() => handleSwipe('superlike')}
                                 />
                             );
                         })
@@ -436,29 +471,40 @@ export default function DiscoverScreen() {
 
             {remainingUsers.length > 0 && (
                 <View style={styles.actions}>
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.nopeButton]}
+                    <Pressable
                         onPress={handleSwipeLeft}
-                        activeOpacity={0.7}
+                        style={({ pressed }) => [
+                            styles.actionButton,
+                            styles.nopeButton,
+                            pressed && { backgroundColor: Colors.nope + '33', transform: [{ scale: 0.95 }] },
+                        ]}
                     >
                         <Ionicons name="close" size={28} color={Colors.nope} />
-                    </TouchableOpacity>
+                    </Pressable>
 
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.superLikeButton]}
+                    <Pressable
                         onPress={handleSuperLike}
-                        activeOpacity={0.7}
+                        style={({ pressed }) => [
+                            styles.actionButton,
+                            styles.superLikeButton,
+                            pressed && { backgroundColor: Colors.superLike + '33', transform: [{ scale: 0.95 }] },
+                        ]}
                     >
                         <Ionicons name="star" size={24} color={Colors.superLike} />
-                    </TouchableOpacity>
+                    </Pressable>
 
-                    <TouchableOpacity
-                        style={[styles.actionButton, styles.likeButton]}
-                        onPress={handleSwipeRight}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="heart" size={28} color={Colors.like} />
-                    </TouchableOpacity>
+                    <Animated.View style={globalLikeStyle}>
+                        <Pressable
+                            onPress={handleSwipeRight}
+                            style={({ pressed }) => [
+                                styles.actionButton,
+                                styles.likeButton,
+                                pressed && { backgroundColor: Colors.like + '33', transform: [{ scale: 0.95 }] },
+                            ]}
+                        >
+                            <Ionicons name="heart" size={28} color={Colors.like} />
+                        </Pressable>
+                    </Animated.View>
                 </View>
             )}
 
@@ -470,7 +516,7 @@ export default function DiscoverScreen() {
             >
                 <View style={styles.modalOverlay}>
                     <LinearGradient
-                        colors={['rgba(139, 92, 246, 0.95)', 'rgba(236, 72, 153, 0.95)']}
+                        colors={[Colors.backgroundTertiary, 'rgba(212, 175, 55, 0.8)']}
                         style={styles.matchModalContent}
                     >
                         <Text style={styles.matchTitle}>It's a Match!</Text>
@@ -538,12 +584,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: Spacing.sm,
     },
-    logoGradient: {
+    logoImage: {
         width: 36,
         height: 36,
         borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     logoText: {
         fontSize: FontSize.xl,
@@ -578,35 +622,38 @@ const styles = StyleSheet.create({
     card: {
         position: 'absolute',
         width: width - Spacing.md * 2,
-        height: height * 0.65,
+        height: height * 0.63,
+        justifyContent: 'flex-start',
+        backgroundColor: Colors.background,
         borderRadius: 32,
-        overflow: 'hidden',
-        backgroundColor: Colors.card,
+        // 白い影とボーダーの適用
+        // 白い影とボーダーの適用（主張を抑えめに設定）
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        ...Shadow.lg,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        shadowColor: '#FFFFFF',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+        elevation: 8,
+    },
+    cardInner: {
+        flex: 1,
+        borderRadius: 32,
+        overflow: 'hidden', // iOSで影が消えないように内側のViewで画像をクリップ
+        backgroundColor: Colors.background,
     },
     cardImage: {
         width: '100%',
-        height: '100%',
+        flex: 1,
         resizeMode: 'cover',
+        backgroundColor: Colors.card,
     },
-    cardGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '70%',
-    },
-
     // --- Card Content & Badges ---
     cardContent: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: Spacing.xl,
-        gap: Spacing.md,
+        padding: Spacing.md,
+        paddingHorizontal: Spacing.lg,
+        gap: 8,
+        backgroundColor: Colors.card, // 上のグラデーションの終点カラーと完全に一致させる
     },
     nameRow: {
         flexDirection: 'row',
@@ -620,6 +667,23 @@ const styles = StyleSheet.create({
         textShadowColor: 'rgba(0, 0, 0, 0.75)',
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4,
+    },
+    userAge: {
+        fontSize: FontSize.xl,
+        fontWeight: '600',
+        color: Colors.textSecondary,
+        marginLeft: 2,
+    },
+    locationContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        marginLeft: 4,
+    },
+    locationText: {
+        fontSize: FontSize.sm,
+        color: Colors.textSecondary,
+        fontWeight: '600',
     },
     infoRow: {
         flexDirection: 'row',
@@ -659,16 +723,16 @@ const styles = StyleSheet.create({
         ...Shadow.lg,
     },
     nopeButton: {
-        borderColor: 'rgba(239, 68, 68, 0.3)',
+        borderColor: Colors.nope + '66',
     },
     superLikeButton: {
         width: 50,
         height: 50,
         borderRadius: 25,
-        borderColor: 'rgba(59, 130, 246, 0.3)',
+        borderColor: Colors.superLike + '66',
     },
     likeButton: {
-        borderColor: 'rgba(6, 214, 160, 0.3)',
+        borderColor: Colors.like + '66',
     },
 
     // --- Stamps & Badges (Overlay) ---

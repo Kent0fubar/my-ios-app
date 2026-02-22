@@ -142,6 +142,45 @@ export const profileService = {
             return publicUrl;
         });
     },
+
+    /**
+     * プロフィールの統計情報（いいね数、マッチ数、閲覧数）を取得する
+     * @param userId 対象のユーザーID
+     */
+    async getStats(userId: string): Promise<{ likes: number; matches: number; views: number }> {
+        validateUUID(userId, 'ユーザーID');
+
+        try {
+            // いいねされた数（directionが'like'または'superlike'で、自分がswiped_idのもの）
+            const { count: likesCount, error: likesError } = await supabase
+                .from('swipes')
+                .select('*', { count: 'exact', head: true })
+                .eq('swiped_id', userId)
+                .in('direction', ['like', 'superlike']);
+
+            if (likesError) throw likesError;
+
+            // マッチ数（自分がuser1_idまたはuser2_idのもの）
+            const { count: matchesCount, error: matchesError } = await supabase
+                .from('matches')
+                .select('*', { count: 'exact', head: true })
+                .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
+
+            if (matchesError) throw matchesError;
+
+            // 閲覧数は現在テーブルがないため、モックデータとして一定の数値を返す（ゆくゆくはprofile_viewsテーブルから取得）
+            const mockViewsCount = Math.floor(Math.random() * 50) + 10;
+
+            return {
+                likes: likesCount || 0,
+                matches: matchesCount || 0,
+                views: mockViewsCount,
+            };
+        } catch (error) {
+            log.error('[DataService] getStats error', error);
+            return { likes: 0, matches: 0, views: 0 };
+        }
+    }
 };
 
 // ============================================================

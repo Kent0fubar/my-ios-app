@@ -4,13 +4,13 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
-    Image,
     TextInput,
     FlatList,
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -149,6 +149,8 @@ export default function ChatScreen() {
                     <Image
                         source={otherProfile?.avatar_url ? { uri: otherProfile.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
                         style={styles.messageAvatar}
+                        contentFit="cover"
+                        transition={200}
                     />
                 )}
                 <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.otherBubble]}>
@@ -201,6 +203,8 @@ export default function ChatScreen() {
                     <Image
                         source={otherProfile?.avatar_url ? { uri: otherProfile.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
                         style={styles.headerAvatar}
+                        contentFit="cover"
+                        transition={200}
                     />
                     <View>
                         <Text style={styles.headerName}>{otherProfile?.name || 'Loading...'}</Text>

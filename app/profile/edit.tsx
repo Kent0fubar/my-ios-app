@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     ScrollView,
     Alert,
+    Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -149,6 +150,8 @@ export default function EditProfileScreen() {
                             textAlignVertical="top"
                         />
                     </View>
+
+
                 </View>
 
                 {/* Skill Level */}
@@ -359,4 +362,5 @@ const styles = StyleSheet.create({
         color: Colors.textSecondary,
         lineHeight: 20,
     },
+
 });

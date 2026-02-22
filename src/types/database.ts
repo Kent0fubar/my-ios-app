@@ -26,6 +26,8 @@ export interface Database {
                     tags: string[] | null
                     avatar_url: string | null
                     audio_clip_url: string | null
+                    birthday: string | null
+                    birthday_hidden: boolean | null
                     is_premium: boolean | null
                     is_verified: boolean | null
                     push_token: string | null

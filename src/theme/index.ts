@@ -1,29 +1,29 @@
 // BandLink テーマ定義
 export const Colors = {
-    // Primary - 音楽的で情熱的なパープル〜マゼンタ
-    primary: '#8B5CF6',
-    primaryLight: '#A78BFA',
-    primaryDark: '#7C3AED',
+    // Primary - シャンパンゴールド
+    primary: '#E5C07B',
+    primaryLight: '#F3D39B',
+    primaryDark: '#B9934B',
 
-    // Secondary - エネルギッシュなピンク
-    secondary: '#EC4899',
-    secondaryLight: '#F472B6',
+    // Secondary - ディープゴールド
+    secondary: '#D4AF37',
+    secondaryLight: '#E8C654',
 
-    // Accent - ネオンティール
-    accent: '#06D6A0',
-    accentLight: '#34D399',
+    // Accent - ライトゴールド
+    accent: '#F9D788',
+    accentLight: '#FFECC0',
 
     // Gradient Colors
-    gradientStart: '#8B5CF6',
-    gradientMiddle: '#EC4899',
-    gradientEnd: '#F97316',
+    gradientStart: '#E5C07B',
+    gradientMiddle: '#D4AF37',
+    gradientEnd: '#B9934B',
 
-    // Background - ダークモード
-    background: '#0A0A1A',
-    backgroundSecondary: '#13132B',
-    backgroundTertiary: '#1C1C3A',
-    card: '#1E1E3F',
-    cardHover: '#2A2A50',
+    // Background - チャコールグレイ
+    background: '#1A1A1E',
+    backgroundSecondary: '#212126',
+    backgroundTertiary: '#2A2A30',
+    card: '#24242A',
+    cardHover: '#303038',
 
     // Surface
     surface: 'rgba(255, 255, 255, 0.05)',
@@ -43,9 +43,9 @@ export const Colors = {
     info: '#3B82F6',
 
     // Match colors
-    like: '#06D6A0',
-    nope: '#EF4444',
-    superLike: '#3B82F6',
+    like: '#D4AF37',       // ディープゴールド
+    nope: '#A0A0C0',       // シルバー / 落ち着いたグレー
+    superLike: '#F9D788',  // ブライトゴールド
 
     // Premium
     gold: '#FFD700',

@@ -24,29 +24,29 @@ const styles = StyleSheet.create({
     instrumentTag: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        paddingLeft: 8,
-        paddingRight: 16,
-        paddingVertical: 8,
+        gap: 6,
+        backgroundColor: Colors.primary + '15', // 選択状態に近い透過プライマリ背景
+        paddingLeft: 4,
+        paddingRight: 10,
+        paddingVertical: 4,
         borderRadius: BorderRadius.full,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderColor: Colors.primary + '40', // プライマリ色のボーダー
     },
     iconContainer: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: Colors.primary + '50',
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: Colors.primary + '20',
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
     },
     instrumentLabel: {
-        fontSize: FontSize.md,
-        color: Colors.text,
-        fontWeight: '800',
-        letterSpacing: 0.3,
+        fontSize: 12,
+        color: Colors.text, // 際立たせるためにメインテキスト色
+        fontWeight: '700',
+        letterSpacing: 0.2,
     },
     genreTag: {
         paddingHorizontal: 12,
@@ -87,7 +87,7 @@ export function InstrumentTag({ icon, label, backgroundColor, style, textStyle }
     const IconComponent = (CustomIcons as any)[svgName];
 
     // アイコンの基本サイズ
-    const iconBaseSize = 24;
+    const iconBaseSize = 14;
 
     const dynamicStyle = backgroundColor ? {
         backgroundColor,
@@ -100,13 +100,13 @@ export function InstrumentTag({ icon, label, backgroundColor, style, textStyle }
                 {localIcon ? (
                     <Image
                         source={localIcon}
-                        style={{ width: iconBaseSize, height: iconBaseSize, tintColor: '#FFFFFF' }}
+                        style={{ width: iconBaseSize, height: iconBaseSize, tintColor: Colors.primary }}
                         resizeMode="contain"
                     />
                 ) : IconComponent ? (
-                    <IconComponent size={iconBaseSize - 2} color={Colors.text} strokeWidth={2} />
+                    <IconComponent size={iconBaseSize - 2} color={Colors.primary} strokeWidth={2.5} />
                 ) : (
-                    <Ionicons name="musical-note" size={iconBaseSize * 0.6} color={Colors.text} />
+                    <Ionicons name="musical-note" size={iconBaseSize * 0.6} color={Colors.primary} />
                 )}
             </View>
             <Text style={[styles.instrumentLabel, textStyle]} numberOfLines={1}>{label}</Text>

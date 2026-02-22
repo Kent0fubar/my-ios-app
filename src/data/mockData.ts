@@ -13,7 +13,7 @@ export interface UserProfile {
     imageUrl: string;
     audioClipUrl?: string;
     distance: number; // km
-    matchScore?: number; // タグマッチ度（0〜100）
+    matchScore?: number; // タグマッチ度（0〜100）woo
     isVerified: boolean;
     isPremium: boolean;
 }
