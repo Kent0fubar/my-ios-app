@@ -9,6 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,18 +17,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { messageService, matchService, profileService } from '../../src/services/dataService';
+import { messageService, matchService, profileService, reportService, moderationService } from '../../src/services/dataService';
 
 interface Message {
     id: string;
     text: string;
     sender: 'me' | 'other';
     timestamp: string;
+    isRead: boolean;
 }
 
 export default function ChatScreen() {
     const { id: otherUserId } = useLocalSearchParams<{ id: string }>();
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, profile } = useAuth();
 
     const [otherProfile, setOtherProfile] = useState<any>(null);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -68,28 +70,39 @@ export default function ChatScreen() {
                     text: m.content || '',
                     sender: m.sender_id === currentUser.id ? 'me' : 'other',
                     timestamp: new Date(m.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+                    isRead: !!m.read_at,
                 }));
 
                 setMessages(formattedMessages);
 
                 // リアルタイム購読の設定
-                channel = messageService.subscribeToMessages(match.id, (newMessage) => {
-                    const newMsg = newMessage;
-                    // 自分が送ったものは handleSend で追加するので、相手のものだけ購読で受ける
-                    if (newMsg && newMsg.sender_id !== currentUser.id) {
-                        setMessages(prev => [...prev, {
-                            id: newMsg.id,
-                            text: newMsg.content || '',
-                            sender: 'other',
-                            timestamp: new Date(newMsg.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-                        }]);
+                channel = messageService.subscribeToMessages(match.id, (payload) => {
+                    if (payload.event === 'INSERT') {
+                        const newMsg = payload.new;
+                        // 自分が送ったものは handleSend で追加するので、相手のものだけ購読で受ける
+                        if (newMsg && newMsg.sender_id !== currentUser.id) {
+                            setMessages(prev => [...prev, {
+                                id: newMsg.id,
+                                text: newMsg.content || '',
+                                sender: 'other',
+                                timestamp: new Date(newMsg.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+                                isRead: false,
+                            }]);
 
-                        // 開いている間に届いたメッセージも即座に既読扱いにする
-                        messageService.markAsRead(match.id, currentUser.id);
+                            // 開いている間に届いたメッセージも即座に既読扱いにする
+                            messageService.markAsRead(match.id, currentUser.id);
 
-                        setTimeout(() => {
-                            flatListRef.current?.scrollToEnd({ animated: true });
-                        }, 100);
+                            setTimeout(() => {
+                                flatListRef.current?.scrollToEnd({ animated: true });
+                            }, 100);
+                        }
+                    } else if (payload.event === 'UPDATE') {
+                        const updatedMsg = payload.new;
+                        if (updatedMsg.read_at) {
+                            setMessages(prev => prev.map(m =>
+                                m.id === updatedMsg.id ? { ...m, isRead: true } : m
+                            ));
+                        }
                     }
                 });
             } catch (error: any) {
@@ -133,6 +146,7 @@ export default function ChatScreen() {
                 text: savedMsg.content || '',
                 sender: 'me',
                 timestamp: new Date(savedMsg.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+                isRead: false,
             }]);
 
             setTimeout(() => {
@@ -141,18 +155,86 @@ export default function ChatScreen() {
         }
     };
 
+    const handleMoreOptions = () => {
+        Alert.alert(
+            'ユーザー設定',
+            'このユーザーに対してどのアクションを行いますか？',
+            [
+                { text: '通報する', style: 'destructive', onPress: handleReport },
+                { text: 'ブロック・マッチ解除', style: 'destructive', onPress: confirmBlock },
+                { text: 'キャンセル', style: 'cancel' },
+            ]
+        );
+    };
+
+    const handleReport = () => {
+        Alert.alert(
+            '通報理由を選択',
+            '通報の理由を選んでください。',
+            [
+                { text: '不適切な発言', onPress: () => submitReport('inappropriate_language') },
+                { text: '嫌がらせ・ストーカー', onPress: () => submitReport('harassment') },
+                { text: 'なりすまし', onPress: () => submitReport('impersonation') },
+                { text: 'その他', onPress: () => submitReport('other') },
+                { text: 'キャンセル', style: 'cancel' },
+            ]
+        );
+    };
+
+    const submitReport = async (reason: string) => {
+        if (!currentUser || !otherUserId) return;
+        try {
+            await reportService.reportUser(currentUser.id, otherUserId, reason);
+            Alert.alert('送信完了', '通報ありがとうございます。運営チームが内容を確認いたします。');
+        } catch (error: any) {
+            const errorMsg = error.message || '送信に失敗しました。';
+            Alert.alert('エラー', errorMsg);
+        }
+    };
+
+    const confirmBlock = () => {
+        Alert.alert(
+            'ブロックの確認',
+            'このユーザーをブロックしてマッチを解除しますか？この操作は取り消せません。',
+            [
+                { text: 'キャンセル', style: 'cancel' },
+                {
+                    text: 'ブロックする',
+                    style: 'destructive',
+                    onPress: async () => {
+                        if (!currentUser || !otherUserId) return;
+                        try {
+                            await moderationService.blockUser(currentUser.id, otherUserId);
+                            Alert.alert('完了', 'ユーザーをブロックしました。');
+                            router.replace('/(tabs)/matches');
+                        } catch (error: any) {
+                            const errorMsg = error.message || 'ブロックに失敗しました。';
+                            Alert.alert('エラー', errorMsg);
+                        }
+                    }
+                },
+            ]
+        );
+    };
+
     const renderMessage = ({ item }: { item: Message }) => {
         const isMe = item.sender === 'me';
         return (
             <View style={[styles.messageRow, isMe && styles.messageRowMe]}>
                 {!isMe && (
-                    <Image
-                        source={otherProfile?.avatar_url ? { uri: otherProfile.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
-                        style={styles.messageAvatar}
-                        contentFit="cover"
-                        transition={200}
-                    />
+                    <TouchableOpacity
+                        onPress={() => router.push(`/profile/${otherUserId}`)}
+                        activeOpacity={0.7}
+                    >
+                        <Image
+                            source={otherProfile?.avatar_url ? { uri: otherProfile.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                            style={styles.messageAvatar}
+                            contentFit="cover"
+                            transition={200}
+                        />
+                    </TouchableOpacity>
                 )}
+
                 <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.otherBubble]}>
                     {isMe ? (
                         <LinearGradient
@@ -162,7 +244,9 @@ export default function ChatScreen() {
                             style={styles.myBubbleGradient}
                         >
                             <Text style={styles.messageText}>{item.text}</Text>
-                            <Text style={styles.timestamp}>{item.timestamp}</Text>
+                            <View style={styles.timestampContainer}>
+                                <Text style={styles.timestamp}>{item.timestamp}</Text>
+                            </View>
                         </LinearGradient>
                     ) : (
                         <>
@@ -171,6 +255,11 @@ export default function ChatScreen() {
                         </>
                     )}
                 </View>
+
+                {/* 既読表示（課金適用期間内のユーザーのみ、自分のメッセージの横に表示） */}
+                {isMe && profile?.subscription_expires_at && new Date(profile.subscription_expires_at) > new Date() && item.isRead && (
+                    <Text style={styles.readIndicator}>既読</Text>
+                )}
             </View>
         );
     };
@@ -213,7 +302,7 @@ export default function ChatScreen() {
                         </Text>
                     </View>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.moreButton}>
+                <TouchableOpacity style={styles.moreButton} onPress={handleMoreOptions}>
                     <Ionicons name="ellipsis-vertical" size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
             </View>
@@ -326,11 +415,12 @@ const styles = StyleSheet.create({
     messageRow: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        gap: Spacing.sm,
-        maxWidth: '80%',
+        gap: Spacing.xs,
+        maxWidth: '85%',
     },
     messageRowMe: {
         alignSelf: 'flex-end',
+        flexDirection: 'row-reverse', // 自分のメッセージは右から左（既読が左に来る）
     },
     messageAvatar: {
         width: 28,
@@ -340,7 +430,7 @@ const styles = StyleSheet.create({
     messageBubble: {
         borderRadius: BorderRadius.lg,
         overflow: 'hidden',
-        maxWidth: '100%',
+        flexShrink: 1, // 既読ラベルのために縮小を許可
     },
     myBubble: {},
     myBubbleGradient: {
@@ -412,5 +502,20 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    myBubbleContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        justifyContent: 'flex-end',
+    },
+    readIndicator: {
+        fontSize: 10,
+        color: Colors.primary,
+        marginRight: 4,
+        marginBottom: 2,
+    },
+    timestampContainer: {
+        marginTop: 4,
+        alignSelf: 'flex-end',
     },
 });

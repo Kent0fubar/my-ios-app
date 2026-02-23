@@ -17,7 +17,7 @@ import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
-import { INSTRUMENTS, GENRES, SKILL_LEVELS, TAGS } from '../../src/data/mockData';
+import { INSTRUMENTS, GENRES, SKILL_LEVELS, TAGS, LOOKING_FOR } from '../../src/data/mockData';
 import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { authService } from '../../src/services/authService';
@@ -74,6 +74,7 @@ export default function ProfileScreen() {
         imageUrl: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop',
         isPremium: profile?.is_premium || false,
         tags: (profile as any)?.tags || [],
+        lookingFor: profile?.looking_for || [],
         birthday: profile?.birthday || null,
         birthdayHidden: profile?.birthday_hidden || false,
     };
@@ -391,6 +392,32 @@ export default function ProfileScreen() {
                                 textStyle={styles.profileGenreLabel}
                             />
                         ))}
+                    </View>
+                </View>
+
+                {/* Matching Purpose */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>マッチング目的</Text>
+                        <TouchableOpacity onPress={() => router.push('/profile/edit-looking-for')}>
+                            <Ionicons name="pencil" size={16} color={Colors.primary} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.tagRow}>
+                        {displayProfile.lookingFor.length > 0 ? (
+                            displayProfile.lookingFor.map((id: string) => {
+                                const item = LOOKING_FOR.find(l => l.id === id);
+                                if (!item) return null;
+                                return (
+                                    <View key={id} style={styles.lookingForChip}>
+                                        <Text style={styles.lookingForIcon}>{item.icon}</Text>
+                                        <Text style={styles.lookingForLabel}>{item.label}</Text>
+                                    </View>
+                                );
+                            })
+                        ) : (
+                            <Text style={styles.emptyTagText}>未設定</Text>
+                        )}
                     </View>
                 </View>
 
@@ -824,6 +851,25 @@ const styles = StyleSheet.create({
     hiddenInfoText: {
         fontSize: 11,
         color: Colors.textTertiary,
+        fontWeight: '600',
+    },
+    lookingForChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: Colors.surface,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: Colors.surfaceBorder,
+    },
+    lookingForIcon: {
+        fontSize: 16,
+    },
+    lookingForLabel: {
+        fontSize: FontSize.sm,
+        color: Colors.text,
         fontWeight: '600',
     },
 });

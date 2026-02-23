@@ -25,6 +25,7 @@ import Animated, {
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../src/theme';
 import { ScreenContainer } from '../src/components/common/ScreenContainer';
 import { purchaseService, PRODUCT_IDS, SubscriptionInfo } from '../src/services/purchaseService';
+import { useAuth } from '../src/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -175,6 +176,7 @@ function PlanCard({
 }
 
 export default function PremiumScreen() {
+    const { refreshProfile } = useAuth();
     const [selectedPlan, setSelectedPlan] = useState<PlanId>('pro');
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [currentSubscription, setCurrentSubscription] = useState<SubscriptionInfo | null>(null);
@@ -221,6 +223,9 @@ export default function PremiumScreen() {
             const result = await purchaseService.purchasePackage(packageId);
 
             if (result.success) {
+                // プロフィールの状態を更新
+                await refreshProfile();
+
                 const planName = packageId === PRODUCT_IDS.PRO_MONTHLY ? 'Pro' : 'Premium';
                 Alert.alert(
                     '購入完了 🎉',

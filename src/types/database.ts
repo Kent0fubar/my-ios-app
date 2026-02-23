@@ -29,11 +29,13 @@ export interface Database {
                     birthday: string | null
                     birthday_hidden: boolean | null
                     is_premium: boolean | null
-                    subscription_plan: 'free' | 'premium' | 'pro' | null
+                    is_pro: boolean | null
                     subscription_started_at: string | null
                     subscription_expires_at: string | null
                     is_verified: boolean | null
                     push_token: string | null
+                    is_suspended: boolean | null
+                    suspended_at: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -53,11 +55,13 @@ export interface Database {
                     avatar_url?: string | null
                     audio_clip_url?: string | null
                     is_premium?: boolean | null
-                    subscription_plan?: 'free' | 'premium' | 'pro' | null
+                    is_pro?: boolean | null
                     subscription_started_at?: string | null
                     subscription_expires_at?: string | null
                     is_verified?: boolean | null
                     push_token?: string | null
+                    is_suspended?: boolean | null
+                    suspended_at?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -77,11 +81,13 @@ export interface Database {
                     avatar_url?: string | null
                     audio_clip_url?: string | null
                     is_premium?: boolean | null
-                    subscription_plan?: 'free' | 'premium' | 'pro' | null
+                    is_pro?: boolean | null
                     subscription_started_at?: string | null
                     subscription_expires_at?: string | null
                     is_verified?: boolean | null
                     push_token?: string | null
+                    is_suspended?: boolean | null
+                    suspended_at?: string | null
                     created_at?: string
                     updated_at?: string
                 }

@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { profileService } from '../../src/services/dataService';
+import { LOOKING_FOR } from '../../src/data/mockData';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 
@@ -26,7 +27,6 @@ const SKILL_LEVELS = [
     { label: '上級者', value: 'advanced' },
     { label: 'プロ', value: 'professional' },
 ];
-const MATCHING_TAGS = ['メンバー募集', 'セッション相手', '音楽トーク', 'ライブ出演'];
 
 export default function EditProfileScreen() {
     const { user, profile, refreshProfile } = useAuth();
@@ -224,19 +224,19 @@ export default function EditProfileScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>マッチング目的</Text>
                     <View style={styles.tagGrid}>
-                        {MATCHING_TAGS.map((item) => (
+                        {LOOKING_FOR.map((item) => (
                             <TouchableOpacity
-                                key={item}
+                                key={item.id}
                                 style={[
                                     styles.tag,
-                                    lookingFor.includes(item) && styles.tagActive
+                                    lookingFor.includes(item.id) && styles.tagActive
                                 ]}
-                                onPress={() => toggleTag(lookingFor, item, setLookingFor)}
+                                onPress={() => toggleTag(lookingFor, item.id, setLookingFor)}
                             >
                                 <Text style={[
                                     styles.tagText,
-                                    lookingFor.includes(item) && styles.tagTextActive
-                                ]}>{item}</Text>
+                                    lookingFor.includes(item.id) && styles.tagTextActive
+                                ]}>{item.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>

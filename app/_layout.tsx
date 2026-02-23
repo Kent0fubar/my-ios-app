@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet, View, LogBox } from 'react-native';
+import { StyleSheet, View, Text, LogBox } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Spacing, FontSize } from '../src/theme';
 import * as SplashScreen from 'expo-splash-screen';
 import { Asset } from 'expo-asset';
 import Animated, {
@@ -61,7 +63,7 @@ let hasShownSplash = false;
 
 // 認証状態のロードが完了してからスプラッシュ画面を隠すためのラッパー
 function AuthLoadedLayout() {
-    const { isLoading } = useAuth();
+    const { isLoading, profile } = useAuth();
     const [minimumTimeElapsed, setMinimumTimeElapsed] = useState(hasShownSplash);
     const [isOverlayVisible, setOverlayVisible] = useState(!hasShownSplash);
 
@@ -104,6 +106,9 @@ function AuthLoadedLayout() {
         opacity: overlayOpacity.value,
     }));
 
+    // アカウント凍結状態の判定
+    const isSuspended = profile?.is_suspended === true;
+
     return (
         <View style={{ flex: 1, backgroundColor: '#0A0A1A' }}>
             <StatusBar style="light" />
@@ -137,11 +142,22 @@ function AuthLoadedLayout() {
                     style={[
                         StyleSheet.absoluteFill,
                         animatedOverlayStyle,
-                        { backgroundColor: '#0A0A1A', pointerEvents: showApp ? 'none' : 'auto' }
+                        { backgroundColor: '#0A0A1A', pointerEvents: (showApp && !isSuspended) ? 'none' : 'auto', zIndex: 100 }
                     ]}
                 >
                     <LoadingScreen />
                 </Animated.View>
+            )}
+
+            {/* アカウント凍結メッセージ */}
+            {isSuspended && (
+                <View style={[StyleSheet.absoluteFill, styles.suspendedOverlay]}>
+                    <Ionicons name="alert-circle" size={80} color="#EF4444" />
+                    <Text style={styles.suspendedTitle}>アカウントが凍結されました</Text>
+                    <Text style={styles.suspendedMessage}>
+                        利用規約違反の疑いがあるため、お使いのアカウントは一時的に停止されています。心当たりがない場合は、運営チームまでお問い合わせください。
+                    </Text>
+                </View>
             )}
         </View>
     );
@@ -187,5 +203,26 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#0A0A1A',
+    },
+    suspendedOverlay: {
+        backgroundColor: '#0A0A1A',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: Spacing.xl,
+        zIndex: 200,
+    },
+    suspendedTitle: {
+        fontSize: FontSize.xxl,
+        fontWeight: '800',
+        color: '#fff',
+        marginTop: Spacing.lg,
+        marginBottom: Spacing.md,
+        textAlign: 'center',
+    },
+    suspendedMessage: {
+        fontSize: FontSize.md,
+        color: '#A0A0C0',
+        textAlign: 'center',
+        lineHeight: 24,
     },
 });

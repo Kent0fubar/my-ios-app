@@ -7,32 +7,49 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
+    Pressable,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { matchService } from '../../src/services/dataService';
+import { matchService, messageService } from '../../src/services/dataService';
 import { InstrumentTag, GenreTag } from '../../src/components/Tag';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { EmptyState } from '../../src/components/common/EmptyState';
+import { ActionModal } from '../../src/components/common/ActionModal';
+import { AdBanner } from '../../src/components/common/AdBanner';
 
 export default function MatchesScreen() {
-    const { user } = useAuth();
+    const { user, profile, refreshProfile } = useAuth();
+    // 判定ロジックを強化: is_premiumフラグか、subscription_planがfree以外ならPremiumとみなす
+    const isPremium = profile?.is_premium === true || (!!profile?.subscription_plan && profile.subscription_plan !== 'free');
+
     const [matches, setMatches] = useState<any[]>([]);
+    const [likesYou, setLikesYou] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [isUpgradeModalVisible, setIsUpgradeModalVisible] = useState(false);
 
     const fetchMatches = async () => {
-        if (!user) return;
+        if (!user) {
+            console.log('[Matches] Skip fetch: No user');
+            return;
+        }
         try {
-            const data = await matchService.getMatches(user.id);
-            setMatches(data);
-            console.log('[Matches] Fetched data:', JSON.stringify(data, null, 2));
+            console.log('[Matches] Fetching matches and likes...');
+            const [matchesData, likesData] = await Promise.all([
+                matchService.getMatches(user.id),
+                matchService.getLikesYou(user.id)
+            ]);
+            console.log(`[Matches] Fetched ${matchesData.length} matches and ${likesData.length} likes`);
+            setMatches(matchesData);
+            setLikesYou(likesData);
         } catch (error) {
-            console.error('[Matches] Fetch error:', error);
+            console.error('[Matches] Fetch Error Details:', error);
         } finally {
             setIsLoading(false);
             setRefreshing(false);
@@ -40,12 +57,36 @@ export default function MatchesScreen() {
     };
 
     useEffect(() => {
+        if (!user) return;
+
+        console.log('[Matches] Initializing screen and subscriptions for user:', user.id);
         fetchMatches();
+
+        // 1. 新着メッセージをリアルタイムで監視
+        const messageChannel = messageService.subscribeToAllMessages(user.id, (payload) => {
+            console.log('[Matches] Message event received:', payload.eventType, payload.new?.id);
+            fetchMatches();
+        });
+
+        // 2. 新しいマッチをリアルタイムで監視
+        const matchChannel = matchService.subscribeToMatches(user.id, (payload) => {
+            console.log('[Matches] Match event received:', payload.eventType, payload.new?.id);
+            fetchMatches();
+        });
+
+        return () => {
+            console.log('[Matches] Cleaning up subscriptions');
+            if (messageChannel) messageChannel.unsubscribe();
+            if (matchChannel) matchChannel.unsubscribe();
+        };
     }, [user]);
 
-    const onRefresh = () => {
+    const onRefresh = async () => {
         setRefreshing(true);
-        fetchMatches();
+        await Promise.all([
+            fetchMatches(),
+            refreshProfile()
+        ]);
     };
 
     if (isLoading && !refreshing) {
@@ -78,6 +119,78 @@ export default function MatchesScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
                 }
             >
+                {/* Likes You / Fans Section (Premium features) */}
+                <View style={[styles.section, { marginBottom: Spacing.lg }]}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>あなたへの「いいね」</Text>
+                        <View style={styles.likesCountBadge}>
+                            <Text style={styles.likesCountText}>{likesYou.length}</Text>
+                        </View>
+                    </View>
+
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.likesYouList}
+                    >
+                        {likesYou.length > 0 ? (
+                            likesYou.map((fan, index) => (
+                                <TouchableOpacity
+                                    key={fan.id}
+                                    style={styles.likeCard}
+                                    activeOpacity={isPremium ? 0.8 : 1}
+                                    onPress={() => {
+                                        console.log('[Matches] Liker Tapped. isPremium:', isPremium, 'LikerID:', fan.id);
+                                        if (isPremium) {
+                                            router.push(`/chat/${fan.id}`);
+                                        } else {
+                                            setIsUpgradeModalVisible(true);
+                                        }
+                                    }}
+                                >
+                                    <View style={styles.likeAvatarContainer}>
+                                        <Image
+                                            source={fan.avatar_url ? { uri: fan.avatar_url } : { uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop' }}
+                                            style={styles.likeAvatar}
+                                        />
+                                        {!isPremium && (
+                                            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill}>
+                                                <View style={styles.lockOverlay}>
+                                                    <Ionicons name="lock-closed" size={20} color="#fff" />
+                                                </View>
+                                            </BlurView>
+                                        )}
+                                    </View>
+                                    <Text style={styles.likeName} numberOfLines={1}>
+                                        {isPremium ? fan.name : '????'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))
+                        ) : (
+                            <View style={styles.emptyLikesContainer}>
+                                <Text style={styles.emptyLikesText}>まだ「いいね」はありません</Text>
+                            </View>
+                        )}
+                        {!isPremium && likesYou.length > 0 && (
+                            <TouchableOpacity
+                                style={styles.revealAllCard}
+                                onPress={() => setIsUpgradeModalVisible(true)}
+                            >
+                                <LinearGradient
+                                    colors={[Colors.primary + '33', Colors.secondary + '33']}
+                                    style={styles.revealAllGradient}
+                                >
+                                    <Ionicons name="eye-outline" size={24} color={Colors.primary} />
+                                    <Text style={styles.revealAllText}>全員見る</Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        )}
+                    </ScrollView>
+                </View>
+
+                {/* 広告セクション（無料会員のみ） */}
+                <AdBanner placement="matches" />
+
                 {/* New matches - horizontal scroll */}
                 {newMatches.length > 0 && (
                     <View style={styles.section}>
@@ -176,6 +289,20 @@ export default function MatchesScreen() {
                     )}
                 </View>
             </ScrollView>
+
+            <ActionModal
+                visible={isUpgradeModalVisible}
+                onClose={() => setIsUpgradeModalVisible(false)}
+                onConfirm={() => {
+                    setIsUpgradeModalVisible(false);
+                    router.push('/premium');
+                }}
+                title="Premium機能"
+                message="あなたに「いいね」してくれたユーザーを全員確認するには、Premiumプランへの登録が必要です。"
+                confirmText="詳しく見る"
+                icon="heart"
+                iconColor={Colors.secondary}
+            />
         </ScreenContainer>
     );
 }
@@ -335,5 +462,84 @@ const styles = StyleSheet.create({
         color: Colors.textTertiary,
         textAlign: 'center',
         paddingHorizontal: Spacing.xl,
+    },
+
+    // --- Likes You Section ---
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        paddingHorizontal: Spacing.lg,
+        marginBottom: Spacing.md,
+    },
+    likesCountBadge: {
+        backgroundColor: Colors.secondary + '33',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: BorderRadius.sm,
+    },
+    likesCountText: {
+        color: Colors.secondary,
+        fontSize: FontSize.xs,
+        fontWeight: '700',
+    },
+    likesYouList: {
+        paddingHorizontal: Spacing.lg,
+        gap: Spacing.md,
+        minHeight: 110,
+    },
+    likeCard: {
+        width: 80,
+        gap: 6,
+        alignItems: 'center',
+    },
+    likeAvatarContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: BorderRadius.lg,
+        overflow: 'hidden',
+        backgroundColor: Colors.surface,
+    },
+    likeAvatar: {
+        width: '100%',
+        height: '100%',
+    },
+    lockOverlay: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+    },
+    likeName: {
+        fontSize: FontSize.xs,
+        color: Colors.text,
+        fontWeight: '600',
+    },
+    revealAllCard: {
+        width: 80,
+        height: 80,
+        borderRadius: BorderRadius.lg,
+        overflow: 'hidden',
+    },
+    revealAllGradient: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+    },
+    revealAllText: {
+        fontSize: 10,
+        color: Colors.primary,
+        fontWeight: '700',
+    },
+    emptyLikesContainer: {
+        height: 80,
+        justifyContent: 'center',
+        paddingHorizontal: Spacing.md,
+    },
+    emptyLikesText: {
+        color: Colors.textTertiary,
+        fontSize: FontSize.sm,
+        fontStyle: 'italic',
     },
 });

@@ -26,13 +26,14 @@ const RATE_LIMITS: Record<string, RateLimitConfig> = {
     'message:send': { maxRequests: 10, windowMs: 60 * 1000 },
 
     // プロフィール閲覧: 1分あたり30件
-    'profile:view': { maxRequests: 30, windowMs: 60 * 1000 },
+    'profile:view': { maxRequests: 60, windowMs: 60 * 1000 },
 
-    // 検索/フィルター: 1分あたり10回
-    'search': { maxRequests: 10, windowMs: 60 * 1000 },
+    // 検索/フィルター: 1分あたり30回
+    'search': { maxRequests: 30, windowMs: 60 * 1000 },
+    'search:premium': { maxRequests: 100, windowMs: 60 * 1000 },
 
     // 認証: 1時間あたり10回（ブルートフォース防止）
-    'auth:login': { maxRequests: 10, windowMs: 60 * 60 * 1000 },
+    'auth:login': { maxRequests: 20, windowMs: 60 * 60 * 1000 },
     'auth:signup': { maxRequests: 3, windowMs: 60 * 60 * 1000 },
 
     // ファイルアップロード: 1時間あたり10回
@@ -68,7 +69,13 @@ export function checkRateLimit(
     action: string,
     userId: string
 ): { allowed: boolean; remaining: number; resetAt: number; retryAfterMs: number } {
-    const config = RATE_LIMITS[action] || RATE_LIMITS['api:general'];
+    let config = { ...(RATE_LIMITS[action] || RATE_LIMITS['api:general']) };
+
+    // 開発モード時は制限を大幅に緩和(10倍)する
+    if (__DEV__) {
+        config.maxRequests = config.maxRequests * 10;
+    }
+
     const key = `${action}:${userId}`;
     const now = Date.now();
 

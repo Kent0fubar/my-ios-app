@@ -37,11 +37,12 @@ import { locationService } from '../../src/services/locationService';
 import { Profile } from '../../src/types/database';
 import { Modal, Alert } from 'react-native';
 import { log } from '../../src/lib/logger';
-import { INSTRUMENTS, GENRES, SKILL_LEVELS } from '../../src/data/mockData';
+import { INSTRUMENTS, GENRES, SKILL_LEVELS, LOOKING_FOR } from '../../src/data/mockData';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { Badge } from '../../src/components/common/Badge';
 import { EmptyState } from '../../src/components/common/EmptyState';
 import { ActionModal } from '../../src/components/common/ActionModal';
+import { AdBanner } from '../../src/components/common/AdBanner';
 import { LocationData } from '../../src/services/locationService';
 import { purchaseService } from '../../src/services/purchaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -75,10 +76,12 @@ const SwipeCard = forwardRef(({
     onSwipeLeft,
     onSwipeRight,
     onSuperLike,
+    cardHeight,
 }: {
     user: Profile & { matchScore?: number; distance?: number };
     isFirst: boolean;
     isSwipeDisabled: boolean;
+    cardHeight: number;
     onLimitReached: () => void;
     onSwipeLeft: () => void;
     onSwipeRight: () => void;
@@ -196,7 +199,7 @@ const SwipeCard = forwardRef(({
 
     return (
         <GestureDetector gesture={panGesture}>
-            <Animated.View style={[styles.card, animatedStyle]}>
+            <Animated.View style={[styles.card, { height: cardHeight }, animatedStyle]}>
                 <View style={styles.cardInner}>
                     <View style={{ flex: 1, width: '100%', position: 'relative' }}>
                         <Image
@@ -336,12 +339,17 @@ export default function DiscoverScreen() {
     const [filters, setFilters] = useState<{
         instruments: string[];
         genres: string[];
+        skillLevels: string[];
+        lookingFor: string[];
         radiusKm: number;
     }>({
         instruments: [],
         genres: [],
+        skillLevels: [],
+        lookingFor: [],
         radiusKm: 50,
     });
+    const [tempFilters, setTempFilters] = useState(filters);
 
     const cardRef = React.useRef<SwipeCardRef>(null);
     const hasCheckedLocation = React.useRef(false);
@@ -427,6 +435,8 @@ export default function DiscoverScreen() {
                 longitude: lon,
                 instruments: isPremium ? filters.instruments : [],
                 genres: isPremium ? filters.genres : [],
+                skillLevels: isPremium ? filters.skillLevels : [],
+                lookingFor: isPremium ? filters.lookingFor : [],
                 radiusKm: isPremium ? filters.radiusKm : undefined,
             });
             setDiscoverUsers(users);
@@ -436,7 +446,7 @@ export default function DiscoverScreen() {
         } finally {
             setIsLoading(false);
         }
-    }, [currentUser, myProfile, checkLocationMismatch]);
+    }, [currentUser, myProfile, checkLocationMismatch, filters, isPremium]);
 
     useEffect(() => {
         fetchUsers(true);
@@ -582,6 +592,7 @@ export default function DiscoverScreen() {
                         style={styles.headerButton}
                         onPress={() => {
                             if (isPremium) {
+                                setTempFilters(filters);
                                 setIsFilterVisible(true);
                             } else {
                                 setFilterLimitModalVisible(true);
@@ -593,7 +604,7 @@ export default function DiscoverScreen() {
                             size={24}
                             color={isPremium ? Colors.primary : Colors.textTertiary}
                         />
-                        {isPremium && (filters.instruments.length > 0 || filters.genres.length > 0) && (
+                        {isPremium && (filters.instruments.length > 0 || filters.genres.length > 0 || filters.skillLevels.length > 0 || filters.lookingFor.length > 0) && (
                             <View style={styles.filterBadge} />
                         )}
                     </TouchableOpacity>
@@ -616,8 +627,16 @@ export default function DiscoverScreen() {
                 </View>
             </View>
 
+            {/* 広告セクション（無料会員のみ） - フロー内に配置 */}
+            <AdBanner placement="discover" />
+
             <View style={styles.cardStack}>
-                {remainingUsers.length > 0 ? (
+                {isLoading ? (
+                    <View style={styles.loadingInner}>
+                        <ActivityIndicator size="large" color={Colors.primary} />
+                        <Text style={styles.loadingText}>ミュージシャンを探しています...</Text>
+                    </View>
+                ) : remainingUsers.length > 0 ? (
                     remainingUsers
                         .slice(0, 3)
                         .reverse()
@@ -630,6 +649,7 @@ export default function DiscoverScreen() {
                                     user={user}
                                     isFirst={isFirst}
                                     isSwipeDisabled={isSwipeDisabled}
+                                    cardHeight={isPremium ? height * 0.63 : height * 0.58}
                                     onLimitReached={handleLimitReached}
                                     onSwipeLeft={() => handleSwipe('nope')}
                                     onSwipeRight={() => handleSwipe('like')}
@@ -825,13 +845,13 @@ export default function DiscoverScreen() {
                                             key={radius}
                                             style={[
                                                 styles.radiusOption,
-                                                filters.radiusKm === radius && styles.selectedFilterOption
+                                                tempFilters.radiusKm === radius && styles.selectedFilterOption
                                             ]}
-                                            onPress={() => setFilters(prev => ({ ...prev, radiusKm: radius }))}
+                                            onPress={() => setTempFilters(prev => ({ ...prev, radiusKm: radius }))}
                                         >
                                             <Text style={[
                                                 styles.radiusText,
-                                                filters.radiusKm === radius && styles.selectedFilterText
+                                                tempFilters.radiusKm === radius && styles.selectedFilterText
                                             ]}>{radius}km</Text>
                                         </TouchableOpacity>
                                     ))}
@@ -846,18 +866,18 @@ export default function DiscoverScreen() {
                                             key={inst.id}
                                             style={[
                                                 styles.filterTag,
-                                                filters.instruments.includes(inst.id) && styles.selectedFilterOption
+                                                tempFilters.instruments.includes(inst.id) && styles.selectedFilterOption
                                             ]}
                                             onPress={() => {
-                                                const newInsts = filters.instruments.includes(inst.id)
-                                                    ? filters.instruments.filter(id => id !== inst.id)
-                                                    : [...filters.instruments, inst.id];
-                                                setFilters(prev => ({ ...prev, instruments: newInsts }));
+                                                const newInsts = tempFilters.instruments.includes(inst.id)
+                                                    ? tempFilters.instruments.filter(id => id !== inst.id)
+                                                    : [...tempFilters.instruments, inst.id];
+                                                setTempFilters(prev => ({ ...prev, instruments: newInsts }));
                                             }}
                                         >
                                             <Text style={[
                                                 styles.filterTagText,
-                                                filters.instruments.includes(inst.id) && styles.selectedFilterText
+                                                tempFilters.instruments.includes(inst.id) && styles.selectedFilterText
                                             ]}>{inst.label}</Text>
                                         </TouchableOpacity>
                                     ))}
@@ -872,19 +892,71 @@ export default function DiscoverScreen() {
                                             key={genre.id}
                                             style={[
                                                 styles.filterTag,
-                                                filters.genres.includes(genre.id) && styles.selectedFilterOption
+                                                tempFilters.genres.includes(genre.id) && styles.selectedFilterOption
                                             ]}
                                             onPress={() => {
-                                                const newGenres = filters.genres.includes(genre.id)
-                                                    ? filters.genres.filter(id => id !== genre.id)
-                                                    : [...filters.genres, genre.id];
-                                                setFilters(prev => ({ ...prev, genres: newGenres }));
+                                                const newGenres = tempFilters.genres.includes(genre.id)
+                                                    ? tempFilters.genres.filter(id => id !== genre.id)
+                                                    : [...tempFilters.genres, genre.id];
+                                                setTempFilters(prev => ({ ...prev, genres: newGenres }));
                                             }}
                                         >
                                             <Text style={[
                                                 styles.filterTagText,
-                                                filters.genres.includes(genre.id) && styles.selectedFilterText
+                                                tempFilters.genres.includes(genre.id) && styles.selectedFilterText
                                             ]}>{genre.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>スキルレベル</Text>
+                                <View style={styles.filterTagRow}>
+                                    {SKILL_LEVELS.map((skill) => (
+                                        <TouchableOpacity
+                                            key={skill.id}
+                                            style={[
+                                                styles.filterTag,
+                                                tempFilters.skillLevels.includes(skill.id) && styles.selectedFilterOption
+                                            ]}
+                                            onPress={() => {
+                                                const newSkills = tempFilters.skillLevels.includes(skill.id)
+                                                    ? tempFilters.skillLevels.filter(id => id !== skill.id)
+                                                    : [...tempFilters.skillLevels, skill.id];
+                                                setTempFilters(prev => ({ ...prev, skillLevels: newSkills }));
+                                            }}
+                                        >
+                                            <Text style={[
+                                                styles.filterTagText,
+                                                tempFilters.skillLevels.includes(skill.id) && styles.selectedFilterText
+                                            ]}>{skill.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>マッチング目的</Text>
+                                <View style={styles.filterTagRow}>
+                                    {LOOKING_FOR.map((item) => (
+                                        <TouchableOpacity
+                                            key={item.id}
+                                            style={[
+                                                styles.filterTag,
+                                                tempFilters.lookingFor.includes(item.id) && styles.selectedFilterOption
+                                            ]}
+                                            onPress={() => {
+                                                const newItems = tempFilters.lookingFor.includes(item.id)
+                                                    ? tempFilters.lookingFor.filter(id => id !== item.id)
+                                                    : [...tempFilters.lookingFor, item.id];
+                                                setTempFilters(prev => ({ ...prev, lookingFor: newItems }));
+                                            }}
+                                        >
+                                            <Text style={[
+                                                styles.filterTagText,
+                                                tempFilters.lookingFor.includes(item.id) && styles.selectedFilterText
+                                            ]}>{item.label}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
@@ -895,7 +967,7 @@ export default function DiscoverScreen() {
                             <TouchableOpacity
                                 style={styles.resetButton}
                                 onPress={() => {
-                                    setFilters({ instruments: [], genres: [], radiusKm: 50 });
+                                    setTempFilters({ instruments: [], genres: [], skillLevels: [], lookingFor: [], radiusKm: 50 });
                                 }}
                             >
                                 <Text style={styles.resetButtonText}>リセット</Text>
@@ -904,7 +976,8 @@ export default function DiscoverScreen() {
                                 style={styles.applyButton}
                                 onPress={() => {
                                     setIsFilterVisible(false);
-                                    fetchUsers();
+                                    setDiscoverUsers([]); // カードをクリアして読み込み中を表示
+                                    setFilters(tempFilters); // これによりfetchUsersが呼ばれる
                                 }}
                             >
                                 <Text style={styles.applyButtonText}>適用する</Text>
@@ -987,6 +1060,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.lg, // 隙間を広げる
     },
     card: {
         position: 'absolute',
@@ -1077,8 +1151,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         gap: Spacing.lg,
-        paddingBottom: Spacing.lg + 10,
-        paddingTop: Spacing.lg,
+        paddingBottom: Spacing.md,
+        paddingTop: Spacing.xl,
     },
     actionButton: {
         width: 68,
@@ -1356,5 +1430,16 @@ const styles = StyleSheet.create({
     applyButtonText: {
         color: '#fff',
         fontWeight: '700',
+    },
+    loadingInner: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.md,
+    },
+    loadingText: {
+        fontSize: FontSize.md,
+        color: Colors.textSecondary,
+        fontWeight: '600',
     },
 });

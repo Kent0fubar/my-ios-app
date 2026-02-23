@@ -125,6 +125,7 @@ export const purchaseService = {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
                     const planType = packageId === PRODUCT_IDS.PRO_MONTHLY || packageId === PRODUCT_IDS.PRO_YEARLY ? 'pro' : 'premium';
+                    const isPro = planType === 'pro';
 
                     const now = new Date();
                     const startedAt = now.toISOString();
@@ -142,8 +143,8 @@ export const purchaseService = {
                     const { error } = await supabase
                         .from('profiles')
                         .update({
-                            subscription_plan: planType,
                             is_premium: true,
+                            is_pro: isPro,
                             subscription_started_at: startedAt,
                             subscription_expires_at: expiresAt
                         })
@@ -180,20 +181,20 @@ export const purchaseService = {
                 if (user) {
                     const { data, error } = await supabase
                         .from('profiles')
-                        .select('subscription_plan, is_premium, subscription_expires_at')
+                        .select('is_premium, is_pro, subscription_expires_at')
                         .eq('id', user.id)
                         .single();
 
                     if (!error && data) {
-                        const plan = data.subscription_plan as 'free' | 'premium' | 'pro' | null;
-                        const isLegacyPremium = data.is_premium && !plan;
+                        const isPro = data.is_pro;
+                        const isPremium = data.is_premium;
                         const expiresAt = data.subscription_expires_at;
                         const now = new Date().toISOString();
 
-                        // 期間内かどうかの判定 (レガシーのis_premiumがtrueの場合は旧仕様として特別に有効とする)
-                        const isValidSubscription = !!plan && !!expiresAt && expiresAt > now;
-                        const isActive = isValidSubscription || !!isLegacyPremium;
-                        const activePlan = isValidSubscription ? plan : (isLegacyPremium ? 'premium' : 'free');
+                        // 期間内かどうかの判定
+                        const isValidSubscription = !!expiresAt && expiresAt > now;
+                        const isActive = isValidSubscription && (isPremium || isPro);
+                        const activePlan = !isValidSubscription ? 'free' : (isPro ? 'pro' : 'premium');
 
                         return {
                             isActive: isActive,
@@ -248,6 +249,47 @@ export const purchaseService = {
             return this.getSubscriptionInfo();
         } catch (e: any) {
             throw new Error('購入の復元に失敗しました: ' + e.message);
+        }
+    },
+
+    /**
+     * サブスクリプション状態をDBと同期
+     * 通信時などに呼び出して有効期限切れをチェック
+     */
+    async syncSubscriptionStatus(): Promise<void> {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('subscription_expires_at, is_premium, is_pro')
+                .eq('id', user.id)
+                .single();
+
+            if (error || !profile) return;
+
+            const now = new Date();
+            const expiresAt = profile.subscription_expires_at ? new Date(profile.subscription_expires_at) : null;
+
+            // クリーンアップが必要な条件:
+            // 1. 期限切れである
+            // 2. プレミアム/Proなのに期限が設定されていない
+            const isExpired = expiresAt && expiresAt < now;
+            const isMissingExpiry = (profile.is_premium || profile.is_pro) && !expiresAt;
+
+            if (isExpired || isMissingExpiry) {
+                console.log('[Purchase] Subscription status cleanup needed. Updating DB...');
+                await supabase
+                    .from('profiles')
+                    .update({
+                        is_premium: false,
+                        is_pro: false
+                    })
+                    .eq('id', user.id);
+            }
+        } catch (err) {
+            console.error('[Purchase] syncSubscriptionStatus error:', err);
         }
     },
 };

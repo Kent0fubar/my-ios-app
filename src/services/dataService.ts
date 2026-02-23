@@ -8,6 +8,7 @@ import { Profile, Match, Message } from '../types/database';
 import { locationService } from './locationService';
 import { File as ExpoFile } from 'expo-file-system';
 import { log } from '../lib/logger';
+import { purchaseService } from './purchaseService';
 
 // UUID形式のバリデーション（SQLインジェクション防止）
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,6 +27,9 @@ export const profileService = {
      * 自分のプロフィールを取得
      */
     async getMyProfile(): Promise<Profile | null> {
+        // 通信時にサブスクリプション期限をチェック
+        await purchaseService.syncSubscriptionStatus();
+
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return null;
 
@@ -201,6 +205,8 @@ export const discoveryService = {
             radiusKm?: number;
             genres?: string[];
             instruments?: string[];
+            skillLevels?: string[];
+            lookingFor?: string[];
         }
     ): Promise<(Profile & { matchScore?: number })[]> {
         return withRateLimit('search', myUserId, async () => {
@@ -228,13 +234,30 @@ export const discoveryService = {
 
             const swipedIds = (swipedData?.map((s: { swiped_id: string }) => s.swiped_id) || [])
                 .filter((id: string) => UUID_REGEX.test(id));
-            const excludeIds = [myUserId, ...swipedIds];
+
+            // ブロック関連のユーザーを除外（自分がブロックした or 相手にブロックされた）
+            const { data: blockedByMe } = await supabase
+                .from('blocks')
+                .select('blocked_id')
+                .eq('blocker_id', myUserId);
+
+            const { data: blockingMe } = await supabase
+                .from('blocks')
+                .select('blocker_id')
+                .eq('blocked_id', myUserId);
+
+            const blockedIds = [
+                ...(blockedByMe?.map(b => b.blocked_id) || []),
+                ...(blockingMe?.map(b => b.blocker_id) || [])
+            ];
+
+            const excludeIds = [myUserId, ...swipedIds, ...blockedIds];
 
             let query = supabase
                 .from('profiles')
                 .select('*')
                 .not('id', 'in', `(${excludeIds.join(',')})`)
-                .limit(20);
+                .limit(50);
 
             if (options?.genres && options.genres.length > 0) {
                 query = query.overlaps('genres', options.genres);
@@ -242,6 +265,14 @@ export const discoveryService = {
 
             if (options?.instruments && options.instruments.length > 0) {
                 query = query.overlaps('instruments', options.instruments);
+            }
+
+            if (options?.skillLevels && options.skillLevels.length > 0) {
+                query = query.in('skill_level', options.skillLevels);
+            }
+
+            if (options?.lookingFor && options.lookingFor.length > 0) {
+                query = query.overlaps('looking_for', options.lookingFor);
             }
 
             const { data, error } = await query;
@@ -291,7 +322,15 @@ export const discoveryService = {
 
             // マッチスコア降順（同スコアなら距離昇順）
             return filtered.sort((a: any, b: any) => {
+                // 1. プロフィールブースト (Pro版ユーザーを最優先表示)
+                const isProA = a.is_pro;
+                const isProB = b.is_pro;
+                if (isProB !== isProA) {
+                    return isProB ? 1 : -1;
+                }
+                // 2. マッチスコア降順
                 if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+                // 3. 距離昇順
                 return (a.distance || 9999) - (b.distance || 9999);
             });
         });
@@ -401,29 +440,52 @@ export const matchService = {
         if (matchesError) throw matchesError;
         if (!matchesData) return [];
 
+        // ブロックしている/されているユーザーIDを取得
+        const { data: blockedByMe } = await supabase
+            .from('blocks')
+            .select('blocked_id')
+            .eq('blocker_id', userId);
+
+        const { data: blockingMe } = await supabase
+            .from('blocks')
+            .select('blocker_id')
+            .eq('blocked_id', userId);
+
+        const blockedIds = new Set([
+            ...(blockedByMe?.map(b => b.blocked_id) || []),
+            ...(blockingMe?.map(b => b.blocker_id) || [])
+        ]);
+
         // 各マッチの最新メッセージと未読件数を取得
-        const matchesWithMessages = await Promise.all(matchesData.map(async (match: any) => {
-            const { data: messages } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('match_id', match.id)
-                .order('created_at', { ascending: false })
-                .limit(1);
+        const matchesWithMessages = await Promise.all(
+            matchesData
+                .filter((match: any) => {
+                    const otherId = match.user1_id === userId ? match.user2_id : match.user1_id;
+                    return !blockedIds.has(otherId);
+                })
+                .map(async (match: any) => {
+                    const { data: messages } = await supabase
+                        .from('messages')
+                        .select('*')
+                        .eq('match_id', match.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
 
-            const { count: unreadCount } = await supabase
-                .from('messages')
-                .select('id', { count: 'exact', head: true })
-                .eq('match_id', match.id)
-                .neq('sender_id', userId)
-                .is('read_at', null);
+                    const { count: unreadCount } = await supabase
+                        .from('messages')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('match_id', match.id)
+                        .neq('sender_id', userId)
+                        .is('read_at', null);
 
-            return {
-                ...match,
-                otherProfile: match.user1_id === userId ? match.profile2 : match.profile1,
-                lastMessage: messages && messages.length > 0 ? messages[0] : undefined,
-                unreadCount: unreadCount || 0
-            };
-        }));
+                    return {
+                        ...match,
+                        otherProfile: match.user1_id === userId ? match.profile2 : match.profile1,
+                        lastMessage: messages && messages.length > 0 ? messages[0] : undefined,
+                        unreadCount: unreadCount || 0
+                    };
+                })
+        );
 
         return matchesWithMessages;
     },
@@ -441,6 +503,19 @@ export const matchService = {
             .limit(1);
 
         if (error) throw error;
+
+        // ブロックチェック
+        const { data: block } = await supabase
+            .from('blocks')
+            .select('id')
+            .or(`and(blocker_id.eq.${user1Id},blocked_id.eq.${user2Id}),and(blocker_id.eq.${user2Id},blocked_id.eq.${user1Id})`)
+            .limit(1);
+
+        if (block && block.length > 0) {
+            console.warn('[matchService] Block exists between these users. Match creation/retrieval denied.');
+            return null;
+        }
+
         if (existing && existing.length > 0) return existing[0];
 
         const { data: newMatch, error: insertError } = await supabase
@@ -451,6 +526,88 @@ export const matchService = {
 
         if (insertError) throw insertError;
         return newMatch;
+    },
+
+    /**
+     * 自分に「いいね」してくれたユーザー一覧を取得
+     * Mutual Match になっていないもののみ
+     */
+    async getLikesYou(userId: string): Promise<Profile[]> {
+        validateUUID(userId, 'ユーザーID');
+
+        try {
+            // 自分に向けられた LIKE/SUPERLIKE を取得
+            // profiles:profiles!swiper_id は「swiper_id カラムを外部キーとする profiles テーブル」を指します
+            const { data: likes, error: likesError } = await supabase
+                .from('swipes')
+                .select(`
+                    swiper_id,
+                    profiles:profiles!swiper_id(*)
+                `)
+                .eq('swiped_id', userId)
+                .in('direction', ['like', 'superlike']);
+
+            if (likesError) {
+                console.error('[matchService.getLikesYou] Database Error:', likesError);
+                throw likesError;
+            }
+
+            console.log(`[matchService.getLikesYou] Raw Likes from DB:`, likes?.length || 0);
+
+            if (!likes || likes.length === 0) {
+                return [];
+            }
+
+            // 既にマッチ済みのユーザーIDを取得して除外（既にマッチしている人は「いいね」リストに出さない）
+            const { data: matches } = await supabase
+                .from('matches')
+                .select('user1_id, user2_id')
+                .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
+
+            const matchedUserIds = new Set(
+                matches?.flatMap(m => [m.user1_id, m.user2_id]).filter(id => id !== userId) || []
+            );
+
+            // ブロックしているユーザーIDを取得して除外
+            const { data: blocks } = await supabase
+                .from('blocks')
+                .select('blocked_id')
+                .eq('blocker_id', userId);
+
+            const blockedUserIds = new Set(blocks?.map(b => b.blocked_id) || []);
+
+            // プロフィールを抽出（エイリアス profiles を使用）
+            const profiles = (likes as any[])
+                .map(l => l.profiles)
+                .filter(p => p && !matchedUserIds.has(p.id) && !blockedUserIds.has(p.id));
+
+            console.log(`[matchService.getLikesYou] Final Profiles after filtering:`, profiles.length);
+            return profiles;
+        } catch (err) {
+            console.error('[matchService.getLikesYou] Unexpected Error:', err);
+            return [];
+        }
+    },
+
+    /**
+     * マッチのリアルタイム購読
+     */
+    subscribeToMatches(userId: string, onEvent: (payload: any) => void) {
+        validateUUID(userId, 'ユーザーID');
+        return supabase
+            .channel(`matches:${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'matches',
+                },
+                (payload: any) => {
+                    onEvent(payload);
+                }
+            )
+            .subscribe();
     },
 };
 
@@ -519,7 +676,7 @@ export const messageService = {
     /**
      * リアルタイムメッセージ購読
      */
-    subscribeToMessages(matchId: string, onMessage: (message: Message) => void) {
+    subscribeToMessages(matchId: string, onEvent: (payload: any) => void) {
         // SQLインジェクション防止: UUID形式を検証
         validateUUID(matchId, 'マッチID');
 
@@ -528,23 +685,38 @@ export const messageService = {
             .on(
                 'postgres_changes',
                 {
-                    event: 'INSERT',
+                    event: '*', // INSERT, UPDATE, DELETE すべて受信
                     schema: 'public',
                     table: 'messages',
-                    filter: `match_id=eq.${matchId}`, // UUID検証済みのため安全
+                    filter: `match_id=eq.${matchId}`,
                 },
                 (payload: any) => {
-                    onMessage(payload.new as Message);
+                    onEvent(payload);
                 }
             )
             .subscribe();
     },
 
     /**
-     * リアルタイム購読を解除
+     * 全メッセージのリアルタイム購読（自慢のユーザーに関するもの）
      */
-    unsubscribeFromMessages(matchId: string) {
-        supabase.channel(`messages:${matchId}`).unsubscribe();
+    subscribeToAllMessages(userId: string, onEvent: (payload: any) => void) {
+        validateUUID(userId, 'ユーザーID');
+
+        return supabase
+            .channel(`global-messages:${userId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*', // INSERT だけでなく UPDATE (既読更新) も検知
+                    schema: 'public',
+                    table: 'messages',
+                },
+                (payload: any) => {
+                    onEvent(payload);
+                }
+            )
+            .subscribe();
     },
 };
 
@@ -561,9 +733,9 @@ export const reportService = {
         reason: string,
         description?: string
     ): Promise<void> {
-        // SQLインジェクション防止: UUID形式を検証
         validateUUID(reporterId, '通報者ID');
         validateUUID(reportedId, '通報対象ID');
+
         return withRateLimit('report', reporterId, async () => {
             const reportData: any = {
                 reporter_id: reporterId,
@@ -572,11 +744,100 @@ export const reportService = {
                 description: description || null,
             };
 
-            const { error } = await supabase
+            console.log('[reportService] Submitting report...', reportData);
+
+            const { error: insertError } = await supabase
                 .from('reports')
                 .insert(reportData);
 
-            if (error) throw error;
+            if (insertError) {
+                console.error('[reportService] Insert Error details:', {
+                    message: insertError.message,
+                    details: insertError.details,
+                    hint: insertError.hint,
+                    code: insertError.code
+                });
+                throw insertError;
+            }
+
+            // 凍結ロジック: 重複しない通報者（ユニークユーザー）の数が一定数（例: 5名）溜まったら自動凍結
+            const SUSPENSION_THRESHOLD = 5;
+
+            // 通報者一覧を取得
+            const { data: reports, error: countError } = await supabase
+                .from('reports')
+                .select('reporter_id')
+                .eq('reported_id', reportedId);
+
+            if (countError) {
+                console.warn('[reportService] Count query failed (non-fatal):', countError.message);
+            }
+
+            // reporter_idのユニークな数を計算
+            const uniqueReporterCount = reports
+                ? new Set(reports.map(r => r.reporter_id)).size
+                : 0;
+
+            if (uniqueReporterCount >= SUSPENSION_THRESHOLD) {
+                console.log(`[reportService] User ${reportedId} reached unique reporter threshold (${uniqueReporterCount}). Suspending...`);
+                const { error: suspendError } = await supabase
+                    .from('profiles')
+                    .update({
+                        is_suspended: true,
+                        suspended_at: new Date().toISOString()
+                    })
+                    .eq('id', reportedId);
+
+                if (suspendError) {
+                    console.error('[reportService] Suspension update failed:', suspendError.message);
+                }
+            }
         });
     },
+};
+
+// ============================================================
+// モデレーション（ブロック・マッチ解除）
+// ============================================================
+export const moderationService = {
+    /**
+     * ユーザーをブロック
+     */
+    async blockUser(blockerId: string, blockedId: string): Promise<void> {
+        validateUUID(blockerId, 'ブロック実行者ID');
+        validateUUID(blockedId, 'ブロック対象ID');
+
+        // 1. ブロック情報を登録
+        try {
+            await supabase
+                .from('blocks')
+                .insert({ blocker_id: blockerId, blocked_id: blockedId });
+        } catch (e) {
+            console.warn('[Moderation] Blocks table might not exist');
+        }
+
+        // 2. マッチを解除
+        await this.unmatchUser(blockerId, blockedId);
+
+        // 3. スワイプ履歴も削除
+        await supabase
+            .from('swipes')
+            .delete()
+            .or(`and(swiper_id.eq.${blockerId},swiped_id.eq.${blockedId}),and(swiper_id.eq.${blockedId},swiped_id.eq.${blockerId})`);
+    },
+
+    /**
+     * マッチを解除
+     */
+    async unmatchUser(userId: string, otherId: string): Promise<void> {
+        validateUUID(userId, 'ユーザーID');
+        validateUUID(otherId, 'ユーザーID');
+
+        const { error } = await supabase
+            .from('matches')
+            .delete()
+            .or(`and(user1_id.eq.${userId},user2_id.eq.${otherId}),and(user1_id.eq.${otherId},user2_id.eq.${userId})`);
+
+        if (error) throw error;
+    }
 };
