@@ -22,6 +22,7 @@ import { profileService } from '../../src/services/dataService';
 import { locationService } from '../../src/services/locationService';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { LocationPickerModal } from '../../src/components/LocationPickerModal';
+import { ActionModal } from '../../src/components/common/ActionModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ITEM_HEIGHT = 60;
@@ -60,6 +61,23 @@ export default function EditInfoScreen() {
     const [keyboardHeight, setKeyboardHeight] = useState(0);
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [activePicker, setActivePicker] = useState<'year' | 'month' | 'day' | null>(null);
+
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalConfig, setModalConfig] = useState<{
+        title: string;
+        message: string;
+        icon: any;
+        iconColor: string;
+        showCancel: boolean;
+        onConfirm?: () => void;
+    }>({
+        title: '',
+        message: '',
+        icon: 'information-circle-outline',
+        iconColor: Colors.primary,
+        showCancel: false,
+    });
 
     // Birthday Selector Options
     const years = useMemo(() => {
@@ -128,13 +146,35 @@ export default function EditInfoScreen() {
             if (result) {
                 setLocation(result.displayName);
                 setCoords({ latitude: result.latitude, longitude: result.longitude });
-                Alert.alert('成功', `位置情報を取得しました：\n${result.displayName}`);
+
+                setModalConfig({
+                    title: '成功',
+                    message: `位置情報を取得しました：\n${result.displayName}`,
+                    icon: 'checkmark-circle-outline',
+                    iconColor: Colors.success,
+                    showCancel: false,
+                });
+                setModalVisible(true);
             } else {
-                Alert.alert('エラー', '位置情報の取得に失敗しました。権限設定を確認してください。');
+                setModalConfig({
+                    title: 'エラー',
+                    message: '位置情報の取得に失敗しました。権限設定を確認してください。',
+                    icon: 'alert-circle-outline',
+                    iconColor: Colors.error,
+                    showCancel: false,
+                });
+                setModalVisible(true);
             }
         } catch (error) {
             console.error('Location detection error:', error);
-            Alert.alert('エラー', '位置情報の取得中に不具合が発生しました。');
+            setModalConfig({
+                title: 'エラー',
+                message: '位置情報の取得中に不具合が発生しました。',
+                icon: 'alert-circle-outline',
+                iconColor: Colors.error,
+                showCancel: false,
+            });
+            setModalVisible(true);
         } finally {
             setIsDetectingLocation(false);
         }
@@ -146,7 +186,14 @@ export default function EditInfoScreen() {
     };
     const handleSave = async () => {
         if (!name.trim()) {
-            Alert.alert('エラー', '名前を入力してください');
+            setModalConfig({
+                title: 'エラー',
+                message: '名前を入力してください',
+                icon: 'alert-circle-outline',
+                iconColor: Colors.error,
+                showCancel: false,
+            });
+            setModalVisible(true);
             return;
         }
 
@@ -169,7 +216,14 @@ export default function EditInfoScreen() {
             router.back();
         } catch (err: any) {
             console.error('Save info error:', err);
-            Alert.alert('エラー', '保存に失敗しました。');
+            setModalConfig({
+                title: 'エラー',
+                message: '保存に失敗しました。',
+                icon: 'alert-circle-outline',
+                iconColor: Colors.error,
+                showCancel: false,
+            });
+            setModalVisible(true);
         } finally {
             setIsSaving(false);
         }
@@ -370,6 +424,20 @@ export default function EditInfoScreen() {
                 onSelect={handleLocationSelect}
                 initialLocation={(coords.latitude !== null && coords.longitude !== null) ? { latitude: coords.latitude, longitude: coords.longitude } : null}
             />
+
+            <ActionModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                onConfirm={() => {
+                    setModalVisible(false);
+                    if (modalConfig.onConfirm) modalConfig.onConfirm();
+                }}
+                title={modalConfig.title}
+                message={modalConfig.message}
+                icon={modalConfig.icon}
+                iconColor={modalConfig.iconColor}
+                showCancelButton={modalConfig.showCancel}
+            />
         </ScreenContainer>
     );
 }
@@ -446,7 +514,7 @@ const styles = StyleSheet.create({
         color: Colors.text,
         fontSize: FontSize.md,
         paddingHorizontal: Spacing.md,
-        paddingVertical: 12,
+        paddingVertical: 14, // 少し高さを出してリッチに
     },
     textArea: {
         minHeight: 120,
@@ -466,16 +534,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: 'rgba(255,255,255,0.05)',
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 12,
-        borderRadius: BorderRadius.md,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: Colors.surfaceBorder,
+        borderRadius: BorderRadius.md,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 14,
     },
     dropdownValue: {
         color: Colors.text,
         fontSize: FontSize.md,
-        fontWeight: '600',
+        fontWeight: '500', // 少し太さを抑えてモダンに
     },
     toggleRow: {
         flexDirection: 'row',
@@ -550,7 +618,7 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 4,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
+        borderBottomColor: 'rgba(255,255,255,0.1)',
     },
     locationText: {
         flex: 1,

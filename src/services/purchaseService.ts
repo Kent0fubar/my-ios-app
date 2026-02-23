@@ -15,6 +15,8 @@
  * 4. EXPO_PUBLIC_REVENUECAT_API_KEY を設定
  */
 
+import { supabase } from '../lib/supabase';
+
 // RevenueCat のProduct ID
 export const PRODUCT_IDS = {
     PREMIUM_MONTHLY: 'bandlink_premium_monthly',      // ¥980/月
@@ -119,8 +121,41 @@ export const purchaseService = {
         if (!this._initialized) {
             // モック: 開発中は常に成功とする
             console.log('[Purchase] Mock purchase:', packageId);
-            this._mockPremium = true;
-            return { success: true };
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const planType = packageId === PRODUCT_IDS.PRO_MONTHLY || packageId === PRODUCT_IDS.PRO_YEARLY ? 'pro' : 'premium';
+
+                    const now = new Date();
+                    const startedAt = now.toISOString();
+
+                    // モック: 有効期限を計算
+                    const isYearly = packageId === PRODUCT_IDS.PRO_YEARLY || packageId === PRODUCT_IDS.PREMIUM_YEARLY;
+                    const expiresAtDate = new Date();
+                    if (isYearly) {
+                        expiresAtDate.setFullYear(expiresAtDate.getFullYear() + 1);
+                    } else {
+                        expiresAtDate.setMonth(expiresAtDate.getMonth() + 1);
+                    }
+                    const expiresAt = expiresAtDate.toISOString();
+
+                    const { error } = await supabase
+                        .from('profiles')
+                        .update({
+                            subscription_plan: planType,
+                            is_premium: true,
+                            subscription_started_at: startedAt,
+                            subscription_expires_at: expiresAt
+                        })
+                        .eq('id', user.id);
+
+                    if (error) throw error;
+                    this._mockPremium = true;
+                    return { success: true };
+                }
+            } catch (error: any) {
+                return { success: false, error: 'DB保存エラー: ' + error.message };
+            }
         }
 
         try {
@@ -140,6 +175,38 @@ export const purchaseService = {
      */
     async getSubscriptionInfo(): Promise<SubscriptionInfo> {
         if (!this._initialized) {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data, error } = await supabase
+                        .from('profiles')
+                        .select('subscription_plan, is_premium, subscription_expires_at')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (!error && data) {
+                        const plan = data.subscription_plan as 'free' | 'premium' | 'pro' | null;
+                        const isLegacyPremium = data.is_premium && !plan;
+                        const expiresAt = data.subscription_expires_at;
+                        const now = new Date().toISOString();
+
+                        // 期間内かどうかの判定 (レガシーのis_premiumがtrueの場合は旧仕様として特別に有効とする)
+                        const isValidSubscription = !!plan && !!expiresAt && expiresAt > now;
+                        const isActive = isValidSubscription || !!isLegacyPremium;
+                        const activePlan = isValidSubscription ? plan : (isLegacyPremium ? 'premium' : 'free');
+
+                        return {
+                            isActive: isActive,
+                            plan: activePlan,
+                            expiresAt: expiresAt || null,
+                            willRenew: false,
+                        };
+                    }
+                }
+            } catch (error) {
+                console.error('[Purchase] Error fetching subscription from DB:', error);
+            }
+
             return {
                 isActive: this._mockPremium,
                 plan: this._mockPremium ? 'premium' : 'free',

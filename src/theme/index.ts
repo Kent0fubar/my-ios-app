@@ -43,9 +43,9 @@ export const Colors = {
     info: '#3B82F6',
 
     // Match colors
-    like: '#D4AF37',       // ディープゴールド
+    like: '#E5C07B',       // シャンパンゴールド
     nope: '#A0A0C0',       // シルバー / 落ち着いたグレー
-    superLike: '#F9D788',  // ブライトゴールド
+    superLike: '#00EAFF',  // エレクトリックブルー (見分けやすく変更)
 
     // Premium
     gold: '#FFD700',

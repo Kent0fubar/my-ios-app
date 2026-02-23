@@ -1,19 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
-    ScrollView,
     TouchableOpacity,
     Dimensions,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import Animated, {
+    FadeInDown,
+    FadeInUp,
+    FadeIn,
+    withRepeat,
+    withTiming,
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    Easing,
+} from 'react-native-reanimated';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../src/theme';
 import { ScreenContainer } from '../src/components/common/ScreenContainer';
+import { purchaseService, PRODUCT_IDS, SubscriptionInfo } from '../src/services/purchaseService';
 
 const { width } = Dimensions.get('window');
+
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 type PlanId = 'premium' | 'pro';
 
@@ -57,41 +73,236 @@ const TESTIMONIALS = [
     { name: 'Mika', text: 'Premium に課金してから3倍マッチが増えました。ブースト最高！', emoji: '🚀' },
 ];
 
-export default function PremiumScreen() {
-    const [selectedPlan, setSelectedPlan] = useState<PlanId>('pro');
+function PlanCard({
+    plan,
+    selected,
+    onPress,
+    index,
+}: {
+    plan: typeof PLANS[0];
+    selected: boolean;
+    onPress: () => void;
+    index: number;
+}) {
+    const scale = useSharedValue(1);
+
+    useEffect(() => {
+        scale.value = withSpring(selected ? 1.03 : 1, {
+            damping: 15,
+            stiffness: 150,
+        });
+    }, [selected]);
+
+    const animatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ scale: scale.value }],
+            borderColor: selected ? Colors.gold : 'transparent',
+            backgroundColor: selected ? 'rgba(212, 175, 55, 0.08)' : Colors.card,
+        };
+    });
+
+    const glowOpacity = useSharedValue(0.5);
+    useEffect(() => {
+        if (selected) {
+            glowOpacity.value = withRepeat(
+                withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+                -1,
+                true
+            );
+        } else {
+            glowOpacity.value = withTiming(0, { duration: 300 });
+        }
+    }, [selected]);
+
+    const glowStyle = useAnimatedStyle(() => {
+        return {
+            opacity: glowOpacity.value,
+        };
+    });
 
     return (
-        <ScreenContainer gradientColors={[Colors.background, '#13102F', Colors.backgroundSecondary]}>
+        <AnimatedTouchableOpacity
+            entering={FadeInDown.delay(300 + index * 150).springify().damping(12)}
+            activeOpacity={0.9}
+            onPress={onPress}
+            style={[styles.planCard, animatedStyle]}
+        >
+            {/* Soft background glow when selected */}
+            <AnimatedLinearGradient
+                colors={['rgba(212, 175, 55, 0)', 'rgba(212, 175, 55, 0.1)']}
+                style={[StyleSheet.absoluteFill, glowStyle]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+            />
+
+            {plan.popular && (
+                <LinearGradient
+                    colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
+                    style={styles.popularBadge}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                >
+                    <Text style={styles.popularText}>人気No.1</Text>
+                </LinearGradient>
+            )}
+
+            <View style={styles.planHeader}>
+                <Text style={[styles.planName, selected && styles.planNameSelected]}>{plan.name}</Text>
+                <View style={styles.priceRow}>
+                    <Text style={styles.planPrice}>{plan.price}</Text>
+                    <Text style={styles.planPeriod}>{plan.period}</Text>
+                </View>
+            </View>
+
+            {/* Radio button */}
+            <View
+                style={[
+                    styles.radio,
+                    selected && styles.radioSelected,
+                ]}
+            >
+                {selected && (
+                    <Animated.View entering={FadeIn.duration(200)}>
+                        <LinearGradient
+                            colors={[Colors.gold, Colors.goldGradientEnd]}
+                            style={styles.radioInner}
+                        />
+                    </Animated.View>
+                )}
+            </View>
+        </AnimatedTouchableOpacity>
+    );
+}
+
+export default function PremiumScreen() {
+    const [selectedPlan, setSelectedPlan] = useState<PlanId>('pro');
+    const [isPurchasing, setIsPurchasing] = useState(false);
+    const [currentSubscription, setCurrentSubscription] = useState<SubscriptionInfo | null>(null);
+    const [isCheckingSub, setIsCheckingSub] = useState(true);
+
+    const heroRotation = useSharedValue(0);
+
+    useEffect(() => {
+        heroRotation.value = withRepeat(
+            withTiming(360, { duration: 10000, easing: Easing.linear }),
+            -1,
+            false
+        );
+
+        // サブスクリプション状態の確認
+        async function checkSubscription() {
+            try {
+                const info = await purchaseService.getSubscriptionInfo();
+                setCurrentSubscription(info);
+                if (info.isActive) {
+                    setSelectedPlan(info.plan === 'pro' ? 'pro' : 'premium');
+                }
+            } catch (error) {
+                console.error('Subscription check failed:', error);
+            } finally {
+                setIsCheckingSub(false);
+            }
+        }
+        checkSubscription();
+    }, []);
+
+    const heroIconStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ rotate: `${heroRotation.value}deg` }],
+        };
+    });
+
+    const handlePurchase = async () => {
+        if (isPurchasing) return;
+
+        setIsPurchasing(true);
+        try {
+            const packageId = selectedPlan === 'pro' ? PRODUCT_IDS.PRO_MONTHLY : PRODUCT_IDS.PREMIUM_MONTHLY;
+            const result = await purchaseService.purchasePackage(packageId);
+
+            if (result.success) {
+                const planName = packageId === PRODUCT_IDS.PRO_MONTHLY ? 'Pro' : 'Premium';
+                Alert.alert(
+                    '購入完了 🎉',
+                    `${planName}プランが有効になりました！すべての機能がご利用いただけます！`,
+                    [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/') }]
+                );
+            } else {
+                Alert.alert('購入キャンセル', result.error || '購入処理が行われませんでした。');
+            }
+        } catch (error: any) {
+            Alert.alert('エラー', '通信エラーが発生しました。時間をおいて再度お試しください。');
+        } finally {
+            setIsPurchasing(false);
+            // 購入後にもう一度状態を取得して反映
+            const info = await purchaseService.getSubscriptionInfo();
+            setCurrentSubscription(info);
+        }
+    };
+
+    const isSubscribed = currentSubscription?.isActive;
+    const isCurrentPlan = isSubscribed && currentSubscription?.plan === selectedPlan;
+    const canUpgrade = isSubscribed && currentSubscription?.plan === 'premium' && selectedPlan === 'pro';
+    const isButtonDisabled = isPurchasing || isCheckingSub || (isSubscribed && !canUpgrade);
+
+    const formatExpiresAt = (isoString?: string | null) => {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+    };
+
+    return (
+        <ScreenContainer gradientColors={[Colors.background, '#1A1829', Colors.backgroundSecondary]}>
             {/* Close button */}
-            <TouchableOpacity
+            <AnimatedTouchableOpacity
+                entering={FadeIn.delay(100)}
                 style={styles.closeButton}
                 onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
             >
                 <Ionicons name="close" size={24} color={Colors.textSecondary} />
-            </TouchableOpacity>
+            </AnimatedTouchableOpacity>
 
-            <ScrollView
+            <Animated.ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
                 {/* Hero section */}
-                <View style={styles.hero}>
-                    <LinearGradient
-                        colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
-                        style={styles.heroIcon}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                    >
-                        <Ionicons name="star" size={36} color="#fff" />
-                    </LinearGradient>
+                <Animated.View entering={FadeInDown.springify().damping(12)} style={styles.hero}>
+                    <Animated.View style={[styles.heroIconWrapper, heroIconStyle]}>
+                        <LinearGradient
+                            colors={['#FFD700', '#F7B733', '#FC4A1A']}
+                            style={styles.heroIcon}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                        >
+                            <Ionicons name="star" size={36} color="#fff" style={{ transform: [{ rotate: '-15deg' }] }} />
+                        </LinearGradient>
+                    </Animated.View>
                     <Text style={styles.heroTitle}>BandLink Premium</Text>
                     <Text style={styles.heroSubtitle}>
-                        もっと多くのミュージシャンと出会おう
+                        さらに多くのミュージシャンに出会おう
                     </Text>
-                </View>
+                </Animated.View>
+
+                {/* Active subscription banner */}
+                {isSubscribed && (
+                    <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.activeSubBanner}>
+                        <View style={styles.activeSubHeader}>
+                            <Ionicons name="sparkles" size={20} color={Colors.gold} />
+                            <Text style={styles.activeSubText}>
+                                現在 {currentSubscription.plan === 'pro' ? 'Pro' : 'Premium'} プランを利用中です ✨
+                            </Text>
+                        </View>
+                        {currentSubscription.expiresAt && (
+                            <Text style={styles.activeSubExpiresText}>
+                                有効期限: {formatExpiresAt(currentSubscription.expiresAt)}
+                            </Text>
+                        )}
+                    </Animated.View>
+                )}
 
                 {/* Stats highlight */}
-                <View style={styles.statsBar}>
+                <Animated.View entering={FadeInDown.delay(150).springify().damping(12)} style={styles.statsBar}>
                     <View style={styles.statHighlight}>
                         <Text style={styles.statValue}>3x</Text>
                         <Text style={styles.statDesc}>マッチ率UP</Text>
@@ -106,61 +317,30 @@ export default function PremiumScreen() {
                         <Text style={styles.statValue}>5x</Text>
                         <Text style={styles.statDesc}>表示回数UP</Text>
                     </View>
-                </View>
+                </Animated.View>
 
                 {/* Plans */}
                 <View style={styles.plansContainer}>
-                    {PLANS.map((plan) => (
-                        <TouchableOpacity
+                    {PLANS.map((plan, index) => (
+                        <PlanCard
                             key={plan.id}
-                            style={[
-                                styles.planCard,
-                                selectedPlan === plan.id && styles.planCardSelected,
-                            ]}
-                            activeOpacity={0.8}
+                            plan={plan}
+                            index={index}
+                            selected={selectedPlan === plan.id}
                             onPress={() => setSelectedPlan(plan.id)}
-                        >
-                            {plan.popular && (
-                                <LinearGradient
-                                    colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
-                                    style={styles.popularBadge}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                >
-                                    <Text style={styles.popularText}>人気No.1</Text>
-                                </LinearGradient>
-                            )}
-                            <View style={styles.planHeader}>
-                                <Text style={styles.planName}>{plan.name}</Text>
-                                <View style={styles.priceRow}>
-                                    <Text style={styles.planPrice}>{plan.price}</Text>
-                                    <Text style={styles.planPeriod}>{plan.period}</Text>
-                                </View>
-                            </View>
-
-                            {/* Radio button */}
-                            <View
-                                style={[
-                                    styles.radio,
-                                    selectedPlan === plan.id && styles.radioSelected,
-                                ]}
-                            >
-                                {selectedPlan === plan.id && (
-                                    <LinearGradient
-                                        colors={[Colors.primary, Colors.secondary]}
-                                        style={styles.radioInner}
-                                    />
-                                )}
-                            </View>
-                        </TouchableOpacity>
+                        />
                     ))}
                 </View>
 
                 {/* Features */}
-                <View style={styles.featuresSection}>
+                <Animated.View entering={FadeInUp.delay(500).springify()} style={styles.featuresSection}>
                     <Text style={styles.featuresTitle}>含まれる機能</Text>
                     {PLANS.find((p) => p.id === selectedPlan)?.features.map((feature, index) => (
-                        <View key={index} style={styles.featureItem}>
+                        <Animated.View
+                            key={`${selectedPlan}-${index}`}
+                            entering={FadeInDown.delay(50 * index)}
+                            style={styles.featureItem}
+                        >
                             <View
                                 style={[
                                     styles.featureIcon,
@@ -183,12 +363,12 @@ export default function PremiumScreen() {
                             >
                                 {feature.text}
                             </Text>
-                        </View>
+                        </Animated.View>
                     ))}
-                </View>
+                </Animated.View>
 
                 {/* Testimonials */}
-                <View style={styles.testimonialSection}>
+                <Animated.View entering={FadeInUp.delay(700).springify()} style={styles.testimonialSection}>
                     <Text style={styles.testimonialTitle}>ユーザーの声 💬</Text>
                     {TESTIMONIALS.map((t, index) => (
                         <View key={index} style={styles.testimonialCard}>
@@ -199,38 +379,59 @@ export default function PremiumScreen() {
                             </View>
                         </View>
                     ))}
-                </View>
+                </Animated.View>
 
                 {/* Free trial note */}
-                <View style={styles.trialNote}>
+                <Animated.View entering={FadeIn.delay(900)} style={styles.trialNote}>
                     <Ionicons name="shield-checkmark" size={20} color={Colors.accent} />
                     <Text style={styles.trialText}>
                         7日間の無料トライアル付き。いつでもキャンセル可能。
                     </Text>
-                </View>
-            </ScrollView>
+                </Animated.View>
+            </Animated.ScrollView>
 
             {/* Subscribe button (fixed at bottom) */}
-            <View style={styles.subscribeContainer}>
-                <TouchableOpacity activeOpacity={0.8} style={styles.subscribeWrapper}>
+            <Animated.View entering={FadeInUp.delay(1000).springify().damping(15)} style={styles.subscribeContainer}>
+                <LinearGradient
+                    colors={['transparent', 'rgba(10, 10, 26, 0.95)', 'rgba(10, 10, 26, 1)']}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                />
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[styles.subscribeWrapper, isButtonDisabled && styles.subscribeWrapperDisabled]}
+                    onPress={isButtonDisabled ? undefined : handlePurchase}
+                    disabled={isButtonDisabled}
+                >
                     <LinearGradient
-                        colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
+                        colors={isButtonDisabled ? [Colors.surface, Colors.surface] : [Colors.goldGradientStart, Colors.goldGradientEnd]}
                         style={styles.subscribeButton}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                     >
-                        <Text style={styles.subscribeText}>
-                            無料トライアルを開始
-                        </Text>
-                        <Text style={styles.subscribeSubtext}>
-                            {selectedPlan === 'pro' ? '¥1,980/月' : '¥980/月'} • 7日間無料
-                        </Text>
+                        {isPurchasing || isCheckingSub ? (
+                            <ActivityIndicator color={Colors.gold} style={styles.loader} />
+                        ) : isSubscribed && !canUpgrade ? (
+                            <Text style={[styles.subscribeText, { color: Colors.gold, fontSize: isCurrentPlan ? FontSize.lg : FontSize.md }]}>
+                                {isCurrentPlan ? '現在のプラン' : '下位プランを選択中'}
+                            </Text>
+                        ) : (
+                            <>
+                                <Text style={styles.subscribeText}>
+                                    {canUpgrade ? 'Proにアップグレード' : '無料トライアルを開始'}
+                                </Text>
+                                <Text style={styles.subscribeSubtext}>
+                                    {selectedPlan === 'pro' ? '¥1,980/月' : '¥980/月'}
+                                    {canUpgrade ? '' : ' • 7日間無料'}
+                                </Text>
+                            </>
+                        )}
                     </LinearGradient>
                 </TouchableOpacity>
                 <Text style={styles.termsText}>
                     購読はいつでもキャンセルできます。利用規約に同意します。
                 </Text>
-            </View>
+            </Animated.View>
         </ScreenContainer>
     );
 }
@@ -241,15 +442,16 @@ const styles = StyleSheet.create({
         top: 56,
         right: Spacing.lg,
         zIndex: 10,
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.15)',
         alignItems: 'center',
         justifyContent: 'center',
+        ...Shadow.sm,
     },
     scrollContent: {
-        paddingBottom: 180,
+        paddingBottom: 220,
     },
     hero: {
         alignItems: 'center',
@@ -257,54 +459,92 @@ const styles = StyleSheet.create({
         paddingBottom: Spacing.xl,
         gap: Spacing.md,
     },
-    heroIcon: {
-        width: 80,
-        height: 80,
-        borderRadius: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
+    heroIconWrapper: {
         ...Shadow.glow,
         shadowColor: Colors.gold,
+    },
+    heroIcon: {
+        width: 88,
+        height: 88,
+        borderRadius: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     heroTitle: {
         fontSize: FontSize.xxxl,
         fontWeight: '900',
         color: Colors.text,
         letterSpacing: -0.5,
+        marginTop: Spacing.sm,
     },
     heroSubtitle: {
         fontSize: FontSize.lg,
         color: Colors.textSecondary,
+        fontWeight: '500',
+    },
+    activeSubBanner: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        marginHorizontal: Spacing.lg,
+        marginBottom: Spacing.xl,
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
+        backgroundColor: 'rgba(212, 175, 55, 0.1)',
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: 'rgba(212, 175, 55, 0.3)',
+    },
+    activeSubHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.sm,
+    },
+    activeSubText: {
+        fontSize: FontSize.md,
+        fontWeight: '700',
+        color: Colors.gold,
+    },
+    activeSubExpiresText: {
+        fontSize: FontSize.xs,
+        color: 'rgba(212, 175, 55, 0.8)',
+        fontWeight: '500',
     },
     statsBar: {
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
         marginHorizontal: Spacing.lg,
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.lg,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: BorderRadius.xl,
         paddingVertical: Spacing.lg,
         borderWidth: 1,
-        borderColor: Colors.surfaceBorder,
+        borderColor: 'rgba(255, 255, 255, 0.08)',
         marginBottom: Spacing.xl,
+        ...Shadow.md,
     },
     statHighlight: {
         alignItems: 'center',
         gap: 4,
     },
     statValue: {
-        fontSize: FontSize.xxl,
+        fontSize: 28,
         fontWeight: '900',
         color: Colors.gold,
+        letterSpacing: -1,
     },
     statDesc: {
         fontSize: FontSize.xs,
         color: Colors.textSecondary,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
     },
     statDivider: {
         width: 1,
-        height: 30,
-        backgroundColor: Colors.surfaceBorder,
+        height: 40,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
     },
     plansContainer: {
         paddingHorizontal: Spacing.lg,
@@ -315,63 +555,74 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: Colors.card,
-        borderRadius: BorderRadius.lg,
+        borderRadius: BorderRadius.xl,
         padding: Spacing.lg,
         borderWidth: 2,
         borderColor: 'transparent',
         position: 'relative',
         overflow: 'hidden',
-    },
-    planCardSelected: {
-        borderColor: Colors.gold,
-        backgroundColor: Colors.gold + '08',
+        ...Shadow.sm,
     },
     popularBadge: {
         position: 'absolute',
         top: 0,
         right: 0,
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderBottomLeftRadius: BorderRadius.md,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderBottomLeftRadius: BorderRadius.lg,
+        zIndex: 2,
+        ...Shadow.md,
+        shadowColor: Colors.gold,
     },
     popularText: {
         fontSize: FontSize.xs,
         fontWeight: '800',
-        color: '#fff',
+        color: '#222',
+        letterSpacing: 0.5,
     },
     planHeader: {
         flex: 1,
+        zIndex: 2,
     },
     planName: {
         fontSize: FontSize.lg,
         fontWeight: '700',
+        color: Colors.textSecondary,
+        marginBottom: 6,
+    },
+    planNameSelected: {
         color: Colors.text,
-        marginBottom: 4,
     },
     priceRow: {
         flexDirection: 'row',
         alignItems: 'baseline',
     },
     planPrice: {
-        fontSize: FontSize.xxl,
+        fontSize: 32,
         fontWeight: '900',
         color: Colors.gold,
+        letterSpacing: -1,
     },
     planPeriod: {
         fontSize: FontSize.sm,
         color: Colors.textSecondary,
+        fontWeight: '500',
+        marginLeft: 2,
     },
     radio: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+        width: 26,
+        height: 26,
+        borderRadius: 13,
         borderWidth: 2,
         borderColor: Colors.textTertiary,
         alignItems: 'center',
         justifyContent: 'center',
+        marginLeft: Spacing.md,
+        zIndex: 2,
     },
     radioSelected: {
         borderColor: Colors.gold,
+        backgroundColor: 'rgba(212, 175, 55, 0.1)',
     },
     radioInner: {
         width: 14,
@@ -384,37 +635,41 @@ const styles = StyleSheet.create({
     },
     featuresTitle: {
         fontSize: FontSize.lg,
-        fontWeight: '700',
+        fontWeight: '800',
         color: Colors.text,
         marginBottom: Spacing.md,
+        letterSpacing: -0.3,
     },
     featureItem: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.md,
-        paddingVertical: 10,
+        paddingVertical: 12,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: 'rgba(255, 255, 255, 0.05)',
     },
     featureIcon: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
     },
     featureIconIncluded: {
-        backgroundColor: Colors.accent + '20',
+        backgroundColor: 'rgba(52, 199, 89, 0.15)',
     },
     featureIconExcluded: {
-        backgroundColor: Colors.surface,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
     },
     featureText: {
         fontSize: FontSize.md,
         color: Colors.text,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     featureTextExcluded: {
         color: Colors.textTertiary,
         textDecorationLine: 'line-through',
+        fontWeight: '400',
     },
     testimonialSection: {
         paddingHorizontal: Spacing.lg,
@@ -422,50 +677,57 @@ const styles = StyleSheet.create({
     },
     testimonialTitle: {
         fontSize: FontSize.lg,
-        fontWeight: '700',
+        fontWeight: '800',
         color: Colors.text,
         marginBottom: Spacing.md,
+        letterSpacing: -0.3,
     },
     testimonialCard: {
         flexDirection: 'row',
         gap: Spacing.md,
-        backgroundColor: Colors.surface,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
         padding: Spacing.lg,
-        borderRadius: BorderRadius.lg,
+        borderRadius: BorderRadius.xl,
         borderWidth: 1,
-        borderColor: Colors.surfaceBorder,
-        marginBottom: Spacing.sm,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
+        marginBottom: Spacing.md,
     },
     testimonialEmoji: {
-        fontSize: 28,
+        fontSize: 32,
     },
     testimonialContent: {
         flex: 1,
-        gap: 6,
+        gap: 8,
     },
     testimonialText: {
         fontSize: FontSize.sm,
-        color: Colors.textSecondary,
+        color: 'rgba(255, 255, 255, 0.85)',
         fontStyle: 'italic',
         lineHeight: 22,
     },
     testimonialName: {
         fontSize: FontSize.xs,
         color: Colors.textTertiary,
-        fontWeight: '600',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     trialNote: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.sm,
         paddingHorizontal: Spacing.lg,
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.xl,
+        backgroundColor: 'rgba(52, 199, 89, 0.08)',
+        paddingVertical: 12,
+        borderRadius: BorderRadius.md,
+        marginHorizontal: Spacing.lg,
     },
     trialText: {
         flex: 1,
         fontSize: FontSize.sm,
-        color: Colors.textSecondary,
-        lineHeight: 20,
+        color: Colors.text,
+        fontWeight: '500',
     },
     subscribeContainer: {
         position: 'absolute',
@@ -473,36 +735,46 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         paddingHorizontal: Spacing.lg,
-        paddingTop: Spacing.md,
+        paddingTop: Spacing.xl,
         paddingBottom: 40,
-        backgroundColor: 'rgba(10, 10, 26, 0.95)',
-        borderTopWidth: 1,
-        borderTopColor: Colors.surfaceBorder,
-        gap: Spacing.sm,
+        gap: Spacing.md,
     },
     subscribeWrapper: {
-        borderRadius: BorderRadius.xl,
+        borderRadius: BorderRadius.full,
         overflow: 'hidden',
-        ...Shadow.lg,
+        ...Shadow.glow,
         shadowColor: Colors.gold,
+    },
+    subscribeWrapperDisabled: {
+        opacity: 0.8,
+        shadowOpacity: 0,
     },
     subscribeButton: {
         alignItems: 'center',
+        justifyContent: 'center',
         paddingVertical: 18,
-        gap: 2,
+        minHeight: 80,
+        gap: 4,
+    },
+    loader: {
+        paddingVertical: 4,
     },
     subscribeText: {
         fontSize: FontSize.lg,
-        fontWeight: '800',
-        color: '#fff',
+        fontWeight: '900',
+        color: '#111',
+        letterSpacing: 0.5,
     },
     subscribeSubtext: {
-        fontSize: FontSize.xs,
-        color: 'rgba(255,255,255,0.7)',
+        fontSize: 13,
+        fontWeight: '600',
+        color: 'rgba(0, 0, 0, 0.6)',
     },
     termsText: {
         fontSize: 10,
         color: Colors.textTertiary,
         textAlign: 'center',
+        fontWeight: '500',
     },
 });
+

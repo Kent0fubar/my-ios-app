@@ -11,6 +11,7 @@ import {
 import MapView, { Marker, Region, MapPressEvent } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { ActionModal } from './common/ActionModal';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../theme';
 
 interface LocationPickerModalProps {
@@ -30,6 +31,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     const [region, setRegion] = useState<Region | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [addressText, setAddressText] = useState<string>('');
+    const [confirmationModalVisible, setConfirmationModalVisible] = useState(false);
 
     useEffect(() => {
         if (visible) {
@@ -89,8 +91,19 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
     const handleConfirm = () => {
         if (selectedCoords) {
-            onSelect(selectedCoords.latitude, selectedCoords.longitude, addressText);
-            onClose();
+            setConfirmationModalVisible(true);
+        }
+    };
+
+    const finalizeSelection = () => {
+        if (selectedCoords) {
+            setConfirmationModalVisible(false);
+            // ダイアログが消える時間を少し待ってから全体を閉じることで、
+            // 重なったモーダルがフリーズするのを防ぐ
+            setTimeout(() => {
+                onSelect(selectedCoords.latitude, selectedCoords.longitude, addressText);
+                onClose();
+            }, 100);
         }
     };
 
@@ -148,6 +161,17 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
                         <Text style={styles.hintOverlay}>地図上をタップ、またはピンをドラッグして移動できます</Text>
                     </View>
                 )}
+
+                <ActionModal
+                    visible={confirmationModalVisible}
+                    onClose={() => setConfirmationModalVisible(false)}
+                    onConfirm={finalizeSelection}
+                    title="場所の確認"
+                    message={`選択された場所：\n${addressText || '不明'}\n\nこの場所を活動拠点に設定しますか？`}
+                    confirmText="設定する"
+                    icon="location"
+                    iconColor={Colors.primary}
+                />
             </View>
         </Modal>
     );

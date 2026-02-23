@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useCallback, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
     View,
     Text,
@@ -7,6 +8,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Pressable,
+    ScrollView,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,9 +41,14 @@ import { INSTRUMENTS, GENRES, SKILL_LEVELS } from '../../src/data/mockData';
 import { ScreenContainer } from '../../src/components/common/ScreenContainer';
 import { Badge } from '../../src/components/common/Badge';
 import { EmptyState } from '../../src/components/common/EmptyState';
+import { ActionModal } from '../../src/components/common/ActionModal';
+import { LocationData } from '../../src/services/locationService';
+import { purchaseService } from '../../src/services/purchaseService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const SWIPE_THRESHOLD = width * 0.45;
+const DAILY_SWIPE_LIMIT = 30;
 const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&h=400&fit=crop';
 
 const SPRING_CONFIG = {
@@ -63,12 +70,16 @@ export type SwipeCardRef = {
 const SwipeCard = forwardRef(({
     user,
     isFirst,
+    isSwipeDisabled,
+    onLimitReached,
     onSwipeLeft,
     onSwipeRight,
     onSuperLike,
 }: {
     user: Profile & { matchScore?: number; distance?: number };
     isFirst: boolean;
+    isSwipeDisabled: boolean;
+    onLimitReached: () => void;
     onSwipeLeft: () => void;
     onSwipeRight: () => void;
     onSuperLike: () => void;
@@ -105,10 +116,22 @@ const SwipeCard = forwardRef(({
     const panGesture = Gesture.Pan()
         .enabled(isFirst)
         .onUpdate((event) => {
+            if (isSwipeDisabled) {
+                // 制限到達時は少しだけ動かせるが重くする
+                translateX.value = event.translationX * 0.15;
+                translateY.value = event.translationY * 0.15;
+                return;
+            }
             translateX.value = event.translationX;
             translateY.value = event.translationY;
         })
         .onEnd((event) => {
+            if (isSwipeDisabled) {
+                translateX.value = withSpring(0, SPRING_CONFIG);
+                translateY.value = withSpring(0, SPRING_CONFIG);
+                runOnJS(onLimitReached)();
+                return;
+            }
             if (event.translationX > SWIPE_THRESHOLD || event.velocityX > 800) {
                 // LIKE (マッチタブに向かって飛んでいく)
                 translateX.value = withTiming(-width * 0.15, { duration: 300, reduceMotion: ReduceMotion.Never });
@@ -167,6 +190,10 @@ const SwipeCard = forwardRef(({
         opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD / 2, -10], [1, 0], Extrapolation.CLAMP),
     }));
 
+    const superLikeOpacityStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(translateY.value, [-120, -40], [1, 0], Extrapolation.CLAMP),
+    }));
+
     return (
         <GestureDetector gesture={panGesture}>
             <Animated.View style={[styles.card, animatedStyle]}>
@@ -192,6 +219,9 @@ const SwipeCard = forwardRef(({
                             </Animated.View>
                             <Animated.View style={[styles.stampContainer, styles.nopeStamp, nopeOpacityStyle]}>
                                 <Text style={[styles.stampText, { color: Colors.nope }]}>NOPE</Text>
+                            </Animated.View>
+                            <Animated.View style={[styles.stampContainer, styles.superLikeStamp, superLikeOpacityStyle]}>
+                                <Text style={[styles.stampText, { color: Colors.superLike }]}>SUPER LIKE</Text>
                             </Animated.View>
                         </>
                     )}
@@ -286,13 +316,36 @@ const SwipeCard = forwardRef(({
 });
 
 export default function DiscoverScreen() {
-    const { user: currentUser, profile: myProfile } = useAuth();
+    const { user: currentUser, profile: myProfile, refreshProfile } = useAuth();
     const [discoverUsers, setDiscoverUsers] = useState<(Profile & { matchScore?: number; distance?: number })[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [matchData, setMatchData] = useState<{ matchId: string; opponent: Profile } | null>(null);
+    const [isLocationModalVisible, setLocationModalVisible] = useState(false);
+    const [pendingLocationData, setPendingLocationData] = useState<LocationData | null>(null);
+    const [locationModalType, setLocationModalType] = useState<'update' | 'initial'>('update');
+
+    // スワイプ制限管理用 state
+    const [swipeCount, setSwipeCount] = useState(0);
+    const [isPremium, setIsPremium] = useState(false);
+    const [limitModalVisible, setLimitModalVisible] = useState(false);
+    const [filterLimitModalVisible, setFilterLimitModalVisible] = useState(false);
+
+    // フィルター用 state
+    const [isFilterVisible, setIsFilterVisible] = useState(false);
+    const [filters, setFilters] = useState<{
+        instruments: string[];
+        genres: string[];
+        radiusKm: number;
+    }>({
+        instruments: [],
+        genres: [],
+        radiusKm: 50,
+    });
 
     const cardRef = React.useRef<SwipeCardRef>(null);
+    const hasCheckedLocation = React.useRef(false);
+    const lastProfileLocation = useRef<string | null>(myProfile?.location || null);
 
     // LIKEボタンのアニメーション用
     const globalLikeScale = useSharedValue(1);
@@ -300,23 +353,81 @@ export default function DiscoverScreen() {
         transform: [{ scale: globalLikeScale.value }]
     }));
 
-    const fetchUsers = useCallback(async () => {
+    /**
+     * 活動拠点と現在地の不一致をチェック
+     */
+    const checkLocationMismatch = useCallback(async () => {
+        if (!currentUser || !myProfile) {
+            log.debug('[Discover] Skip check: user or profile missing');
+            return false;
+        }
+
+        try {
+            log.info('[Discover] Starting location check...');
+            const currentLocation = await locationService.getCurrentLocation();
+            if (!currentLocation) {
+                log.warn('[Discover] Could not get current location');
+                return false;
+            }
+
+            const currentLat = currentLocation.latitude;
+            const currentLon = currentLocation.longitude;
+            const profileLat = myProfile.latitude;
+            const profileLon = myProfile.longitude;
+
+            log.info(`[Discover] Current: ${currentLat}, ${currentLon} | Profile: ${profileLat}, ${profileLon}`);
+
+            if (profileLat && profileLon) {
+                const distance = locationService.calculateDistance(
+                    profileLat,
+                    profileLon,
+                    currentLat,
+                    currentLon
+                );
+
+                log.info(`[Discover] Location mismatch distance: ${distance}km`);
+
+                // 10km以上離れている場合に警告を表示
+                if (distance > 10) {
+                    setPendingLocationData(currentLocation);
+                    setLocationModalType('update');
+                    setLocationModalVisible(true);
+                }
+            } else {
+                // 拠点未登録の場合も確認する
+                setPendingLocationData(currentLocation);
+                setLocationModalType('initial');
+                setLocationModalVisible(true);
+            }
+            return true; // チェック成功
+        } catch (err) {
+            log.error('[Discover] Location check error:', err);
+            return false;
+        }
+    }, [currentUser, myProfile, refreshProfile]);
+
+    const fetchUsers = useCallback(async (isInitial = false) => {
         if (!currentUser) return;
         setIsLoading(true);
         try {
-            // 位置情報の取得は並行して行い、完了を待たずに検索を開始する（既存のプロフィール情報を優先）
-            // これによりGPS取得で画面が止まるのを防ぐ
+            // 初回読み込み時かつ未チェックの場合に位置情報を確認
+            if (isInitial && !hasCheckedLocation.current && myProfile) {
+                checkLocationMismatch().then(success => {
+                    if (success) {
+                        hasCheckedLocation.current = true;
+                    }
+                });
+            }
+
             const lat = myProfile?.latitude || undefined;
             const lon = myProfile?.longitude || undefined;
-
-            // 非同期で位置情報を更新（バックグラウンドで実行）
-            locationService.updateProfileLocation(currentUser.id).catch(err => {
-                if (__DEV__) console.warn('[Discover] Background location update failed:', err);
-            });
 
             const users = await discoveryService.getDiscoverUsers(currentUser.id, {
                 latitude: lat,
                 longitude: lon,
+                instruments: isPremium ? filters.instruments : [],
+                genres: isPremium ? filters.genres : [],
+                radiusKm: isPremium ? filters.radiusKm : undefined,
             });
             setDiscoverUsers(users);
             setCurrentIndex(0);
@@ -325,11 +436,46 @@ export default function DiscoverScreen() {
         } finally {
             setIsLoading(false);
         }
-    }, [currentUser, myProfile]);
+    }, [currentUser, myProfile, checkLocationMismatch]);
 
     useEffect(() => {
-        fetchUsers();
+        fetchUsers(true);
     }, [fetchUsers]);
+
+    // プロフィールとスワイプ回数のロード
+    const checkSubscriptionAndSwipeCount = useCallback(async () => {
+        if (!currentUser) return;
+        try {
+            const info = await purchaseService.getSubscriptionInfo();
+            setIsPremium(info.isActive);
+
+            if (!info.isActive) {
+                const today = new Date().toISOString().split('T')[0];
+                const key = `swipeCount_${currentUser.id}_${today}`;
+                const stored = await AsyncStorage.getItem(key);
+                setSwipeCount(stored ? parseInt(stored) : 0);
+            }
+        } catch (e) {
+            console.error('[Discover] Failed to check sub/swipe count', e);
+        }
+    }, [currentUser]);
+
+    // 画面にフォーカスが戻った際にプロフィールと課金情報を最新化する
+    useFocusEffect(
+        useCallback(() => {
+            refreshProfile();
+            checkSubscriptionAndSwipeCount();
+        }, [refreshProfile, checkSubscriptionAndSwipeCount])
+    );
+
+    // プロフィールの位置情報（文字列）が変わった場合にカードを再取得する
+    useEffect(() => {
+        if (myProfile?.location !== lastProfileLocation.current) {
+            log.info(`[Discover] Location changed from ${lastProfileLocation.current} to ${myProfile?.location}. Refreshing users...`);
+            lastProfileLocation.current = myProfile?.location || null;
+            fetchUsers(false);
+        }
+    }, [myProfile?.location, fetchUsers]);
 
     const handleSwipe = useCallback(async (direction: 'like' | 'nope' | 'superlike') => {
         if (!currentUser || currentIndex >= discoverUsers.length) return;
@@ -340,6 +486,14 @@ export default function DiscoverScreen() {
                 withTiming(1.3, { duration: 150 }),
                 withSpring(1, { damping: 8, stiffness: 200 })
             );
+        }
+
+        if (!isPremium) {
+            const newCount = swipeCount + 1;
+            setSwipeCount(newCount);
+            const today = new Date().toISOString().split('T')[0];
+            const key = `swipeCount_${currentUser.id}_${today}`;
+            AsyncStorage.setItem(key, newCount.toString());
         }
 
         const swipedUser = discoverUsers[currentIndex];
@@ -373,9 +527,15 @@ export default function DiscoverScreen() {
             );
             // 失敗時はカードの位置を戻す等の処理が必要になる場合がありますが、現状はそのまま
         }
-    }, [currentUser, discoverUsers, currentIndex, myProfile]);
+    }, [currentUser, discoverUsers, currentIndex, myProfile, isPremium, swipeCount]);
+
+    const isSwipeDisabled = !isPremium && swipeCount >= DAILY_SWIPE_LIMIT;
+    const handleLimitReached = () => {
+        setLimitModalVisible(true);
+    };
 
     const handleSwipeLeft = () => {
+        if (isSwipeDisabled) { handleLimitReached(); return; }
         if (cardRef.current) {
             cardRef.current.swipeLeft();
         } else {
@@ -384,6 +544,7 @@ export default function DiscoverScreen() {
     };
 
     const handleSwipeRight = () => {
+        if (isSwipeDisabled) { handleLimitReached(); return; }
         if (cardRef.current) {
             cardRef.current.swipeRight();
         } else {
@@ -392,6 +553,7 @@ export default function DiscoverScreen() {
     };
 
     const handleSuperLike = () => {
+        if (isSwipeDisabled) { handleLimitReached(); return; }
         if (cardRef.current) {
             cardRef.current.swipeUp();
         } else {
@@ -416,6 +578,25 @@ export default function DiscoverScreen() {
                     <Text style={styles.logoText}>BandLink</Text>
                 </View>
                 <View style={styles.headerRight}>
+                    <TouchableOpacity
+                        style={styles.headerButton}
+                        onPress={() => {
+                            if (isPremium) {
+                                setIsFilterVisible(true);
+                            } else {
+                                setFilterLimitModalVisible(true);
+                            }
+                        }}
+                    >
+                        <Ionicons
+                            name="options"
+                            size={24}
+                            color={isPremium ? Colors.primary : Colors.textTertiary}
+                        />
+                        {isPremium && (filters.instruments.length > 0 || filters.genres.length > 0) && (
+                            <View style={styles.filterBadge} />
+                        )}
+                    </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.headerButton}
                         onPress={() => router.push('/premium')}
@@ -448,6 +629,8 @@ export default function DiscoverScreen() {
                                     ref={isFirst ? cardRef : null}
                                     user={user}
                                     isFirst={isFirst}
+                                    isSwipeDisabled={isSwipeDisabled}
+                                    onLimitReached={handleLimitReached}
                                     onSwipeLeft={() => handleSwipe('nope')}
                                     onSwipeRight={() => handleSwipe('like')}
                                     onSuperLike={() => handleSwipe('superlike')}
@@ -484,10 +667,15 @@ export default function DiscoverScreen() {
                         style={({ pressed }) => [
                             styles.actionButton,
                             styles.superLikeButton,
-                            pressed && { backgroundColor: Colors.superLike + '33', transform: [{ scale: 0.95 }] },
+                            pressed && { backgroundColor: Colors.superLike + '22', transform: [{ scale: 0.95 }] },
                         ]}
                     >
-                        <Ionicons name="star" size={24} color={Colors.superLike} />
+                        <LinearGradient
+                            colors={[Colors.superLike + '44', 'transparent']}
+                            style={styles.superLikeInner}
+                        >
+                            <Ionicons name="star" size={26} color={Colors.superLike} />
+                        </LinearGradient>
                     </Pressable>
 
                     <Animated.View style={globalLikeStyle}>
@@ -496,10 +684,10 @@ export default function DiscoverScreen() {
                             style={({ pressed }) => [
                                 styles.actionButton,
                                 styles.likeButton,
-                                pressed && { backgroundColor: Colors.like + '33', transform: [{ scale: 0.95 }] },
+                                pressed && { backgroundColor: Colors.like + '22', transform: [{ scale: 0.95 }] },
                             ]}
                         >
-                            <Ionicons name="heart" size={28} color={Colors.like} />
+                            <Ionicons name="heart" size={30} color={Colors.like} />
                         </Pressable>
                     </Animated.View>
                 </View>
@@ -553,6 +741,178 @@ export default function DiscoverScreen() {
                     </LinearGradient>
                 </View>
             </Modal>
+
+            {/* Location Mismatch Modal */}
+            <ActionModal
+                visible={isLocationModalVisible}
+                onClose={() => setLocationModalVisible(false)}
+                onConfirm={async () => {
+                    setLocationModalVisible(false);
+                    setIsLoading(true);
+                    try {
+                        await locationService.updateProfileLocation(currentUser!.id);
+                        await refreshProfile();
+                        fetchUsers();
+                    } catch (e) {
+                        log.error('[Discover] Failed to update location via modal', e);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                }}
+                title={locationModalType === 'update' ? '活動拠点の更新' : '活動拠点の登録'}
+                message={locationModalType === 'update'
+                    ? `現在の場所（${pendingLocationData?.displayName}）は、登録されている活動拠点（${myProfile?.location || '不明'}）から離れています。\n\n活動拠点を現在の場所に更新しますか？`
+                    : `現在の場所（${pendingLocationData?.displayName}）を活動拠点として登録しますか？`
+                }
+                confirmText={locationModalType === 'update' ? '更新する' : '登録する'}
+                icon="location"
+                iconColor={Colors.primary}
+            />
+
+            {/* Swipe Limit Modal */}
+            <ActionModal
+                visible={limitModalVisible}
+                onClose={() => setLimitModalVisible(false)}
+                onConfirm={() => {
+                    setLimitModalVisible(false);
+                    router.push('/premium');
+                }}
+                title="本日の制限に到達しました"
+                message={`無料プランでは1日${DAILY_SWIPE_LIMIT}回までのスワイプ制限があります。\n明日の0時になると回数はリセットされます。\n\nBandLink Premiumに加入すると、この制限がなくなり無制限にスワイプできます！`}
+                confirmText="Premiumを見る"
+                cancelText="閉じる"
+                icon="star"
+                iconColor={Colors.gold}
+            />
+
+            {/* Filter Premium Promotion Modal */}
+            <ActionModal
+                visible={filterLimitModalVisible}
+                onClose={() => setFilterLimitModalVisible(false)}
+                onConfirm={() => {
+                    setFilterLimitModalVisible(false);
+                    router.push('/premium');
+                }}
+                title="高度なフィルター"
+                message="特定の楽器やジャンル、距離を指定してミュージシャンを探せる「高度なフィルター」はPremium限定の機能です。Premiumに加入して、理想のメンバーをより効率的に見つけましょう！"
+                confirmText="Premiumの詳細"
+                cancelText="閉じる"
+                icon="options"
+                iconColor={Colors.primary}
+            />
+
+            {/* Premium Filter Modal */}
+            <Modal
+                visible={isFilterVisible}
+                animationType="slide"
+                transparent={true}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.filterModalContent}>
+                        <View style={styles.filterHeader}>
+                            <Text style={styles.filterTitle}>高度なフィルター</Text>
+                            <TouchableOpacity onPress={() => setIsFilterVisible(false)}>
+                                <Ionicons name="close" size={24} color={Colors.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>検索範囲: {filters.radiusKm}km</Text>
+                                <View style={styles.radiusContainer}>
+                                    {[10, 30, 50, 100].map((radius) => (
+                                        <TouchableOpacity
+                                            key={radius}
+                                            style={[
+                                                styles.radiusOption,
+                                                filters.radiusKm === radius && styles.selectedFilterOption
+                                            ]}
+                                            onPress={() => setFilters(prev => ({ ...prev, radiusKm: radius }))}
+                                        >
+                                            <Text style={[
+                                                styles.radiusText,
+                                                filters.radiusKm === radius && styles.selectedFilterText
+                                            ]}>{radius}km</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>楽器で絞り込む</Text>
+                                <View style={styles.filterTagRow}>
+                                    {INSTRUMENTS.map((inst) => (
+                                        <TouchableOpacity
+                                            key={inst.id}
+                                            style={[
+                                                styles.filterTag,
+                                                filters.instruments.includes(inst.id) && styles.selectedFilterOption
+                                            ]}
+                                            onPress={() => {
+                                                const newInsts = filters.instruments.includes(inst.id)
+                                                    ? filters.instruments.filter(id => id !== inst.id)
+                                                    : [...filters.instruments, inst.id];
+                                                setFilters(prev => ({ ...prev, instruments: newInsts }));
+                                            }}
+                                        >
+                                            <Text style={[
+                                                styles.filterTagText,
+                                                filters.instruments.includes(inst.id) && styles.selectedFilterText
+                                            ]}>{inst.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.filterSection}>
+                                <Text style={styles.filterSectionTitle}>ジャンルで絞り込む</Text>
+                                <View style={styles.filterTagRow}>
+                                    {GENRES.map((genre) => (
+                                        <TouchableOpacity
+                                            key={genre.id}
+                                            style={[
+                                                styles.filterTag,
+                                                filters.genres.includes(genre.id) && styles.selectedFilterOption
+                                            ]}
+                                            onPress={() => {
+                                                const newGenres = filters.genres.includes(genre.id)
+                                                    ? filters.genres.filter(id => id !== genre.id)
+                                                    : [...filters.genres, genre.id];
+                                                setFilters(prev => ({ ...prev, genres: newGenres }));
+                                            }}
+                                        >
+                                            <Text style={[
+                                                styles.filterTagText,
+                                                filters.genres.includes(genre.id) && styles.selectedFilterText
+                                            ]}>{genre.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                        <View style={styles.filterActions}>
+                            <TouchableOpacity
+                                style={styles.resetButton}
+                                onPress={() => {
+                                    setFilters({ instruments: [], genres: [], radiusKm: 50 });
+                                }}
+                            >
+                                <Text style={styles.resetButtonText}>リセット</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.applyButton}
+                                onPress={() => {
+                                    setIsFilterVisible(false);
+                                    fetchUsers();
+                                }}
+                            >
+                                <Text style={styles.applyButtonText}>適用する</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </ScreenContainer>
     );
 }
@@ -593,7 +953,19 @@ const styles = StyleSheet.create({
     },
     headerRight: {
         flexDirection: 'row',
+        alignItems: 'center',
         gap: Spacing.sm,
+    },
+    filterBadge: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: Colors.error,
+        borderWidth: 1,
+        borderColor: Colors.background,
     },
     headerButton: {
         width: 40,
@@ -705,8 +1077,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         gap: Spacing.lg,
-        paddingBottom: Spacing.lg,
-        paddingTop: Spacing.md,
+        paddingBottom: Spacing.lg + 10,
+        paddingTop: Spacing.lg,
     },
     actionButton: {
         width: 68,
@@ -714,21 +1086,34 @@ const styles = StyleSheet.create({
         borderRadius: 34,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: '#1E1E22',
         borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.1)',
-        ...Shadow.lg,
+        borderColor: 'rgba(255,255,255,0.08)',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2, // 0.4 から 0.2 へ低減
+        shadowRadius: 6,    // 10 から 6 へ低減
+        elevation: 4,       // 8 から 4 へ低減
     },
     nopeButton: {
-        borderColor: Colors.nope + '66',
+        shadowColor: Colors.nope,
+        borderColor: Colors.nope + '33',
     },
     superLikeButton: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        shadowColor: Colors.superLike,
         borderColor: Colors.superLike + '66',
     },
+    superLikeInner: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 28,
+    },
     likeButton: {
+        shadowColor: Colors.like,
         borderColor: Colors.like + '66',
     },
 
@@ -788,6 +1173,12 @@ const styles = StyleSheet.create({
         right: 20,
         borderColor: Colors.nope,
         transform: [{ rotate: '15deg' }],
+    },
+    superLikeStamp: {
+        bottom: 200,
+        alignSelf: 'center',
+        borderColor: Colors.superLike,
+        transform: [{ rotate: '-10deg' }],
     },
     stampText: {
         fontSize: FontSize.xxxl,
@@ -864,5 +1255,106 @@ const styles = StyleSheet.create({
         fontSize: FontSize.sm,
         fontWeight: '500',
         opacity: 0.8,
+    },
+
+    // --- Filter Modal ---
+    filterModalContent: {
+        width: width,
+        height: height * 0.8,
+        backgroundColor: Colors.background,
+        borderTopLeftRadius: BorderRadius.xl,
+        borderTopRightRadius: BorderRadius.xl,
+        padding: Spacing.lg,
+        position: 'absolute',
+        bottom: 0,
+    },
+    filterHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.xl,
+    },
+    filterTitle: {
+        fontSize: FontSize.xl,
+        fontWeight: '800',
+        color: Colors.text,
+    },
+    filterSection: {
+        marginBottom: Spacing.xl,
+    },
+    filterSectionTitle: {
+        fontSize: FontSize.md,
+        fontWeight: '700',
+        color: Colors.text,
+        marginBottom: Spacing.md,
+    },
+    radiusContainer: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+    },
+    radiusOption: {
+        flex: 1,
+        paddingVertical: 10,
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.md,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: Colors.surfaceBorder,
+    },
+    radiusText: {
+        color: Colors.textSecondary,
+        fontWeight: '600',
+    },
+    filterTagRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    filterTag: {
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        backgroundColor: Colors.surface,
+        borderRadius: BorderRadius.full,
+        borderWidth: 1,
+        borderColor: Colors.surfaceBorder,
+    },
+    filterTagText: {
+        color: Colors.textSecondary,
+        fontSize: FontSize.sm,
+    },
+    selectedFilterOption: {
+        backgroundColor: Colors.primary + '20',
+        borderColor: Colors.primary,
+    },
+    selectedFilterText: {
+        color: Colors.primary,
+        fontWeight: '700',
+    },
+    filterActions: {
+        flexDirection: 'row',
+        gap: Spacing.md,
+        paddingTop: Spacing.lg,
+        borderTopWidth: 1,
+        borderTopColor: Colors.surfaceBorder,
+    },
+    resetButton: {
+        flex: 1,
+        paddingVertical: 15,
+        alignItems: 'center',
+    },
+    resetButtonText: {
+        color: Colors.textTertiary,
+        fontWeight: '600',
+    },
+    applyButton: {
+        flex: 2,
+        backgroundColor: Colors.primary,
+        paddingVertical: 15,
+        borderRadius: BorderRadius.full,
+        alignItems: 'center',
+    },
+    applyButtonText: {
+        color: '#fff',
+        fontWeight: '700',
     },
 });

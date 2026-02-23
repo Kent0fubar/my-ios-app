@@ -8,7 +8,9 @@ import {
     Image,
     ActivityIndicator,
     RefreshControl,
+    TextInput,
 } from 'react-native';
+import Animated, { FadeInRight, FadeOutRight } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -21,6 +23,8 @@ export default function MessagesScreen() {
     const [matches, setMatches] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [isSearchActive, setIsSearchActive] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const fetchMatches = async () => {
         if (!user) return;
@@ -53,10 +57,20 @@ export default function MessagesScreen() {
     }
 
     // 会話（メッセージがあるもの）
-    const activeMatches = matches.filter(m => !!m.lastMessage);
+    const activeMatches = matches.filter(m => {
+        if (!m.lastMessage) return false;
+        if (!searchQuery) return true;
+        const name = m.otherProfile?.name?.toLowerCase() || '';
+        return name.includes(searchQuery.toLowerCase());
+    });
 
-    // オンライン中のユーザー（とりあえずマッチした人を表示）
-    const onlineMatches = matches.filter(m => m.otherProfile).slice(0, 10);
+    // オンライン中のユーザー（フィルタリング対象にするかは好みだが、一応名前検索に連動させる）
+    const onlineMatches = matches.filter(m => {
+        if (!m.otherProfile) return false;
+        if (!searchQuery) return true;
+        const name = m.otherProfile.name?.toLowerCase() || '';
+        return name.includes(searchQuery.toLowerCase());
+    }).slice(0, 10);
 
     return (
         <View style={styles.container}>
@@ -67,10 +81,50 @@ export default function MessagesScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>メッセージ</Text>
-                <TouchableOpacity style={styles.searchButton}>
-                    <Ionicons name="search" size={22} color={Colors.textSecondary} />
-                </TouchableOpacity>
+                {!isSearchActive ? (
+                    <>
+                        <Text style={styles.headerTitle}>メッセージ</Text>
+                        <TouchableOpacity
+                            style={styles.searchButton}
+                            onPress={() => setIsSearchActive(true)}
+                        >
+                            <Ionicons name="search" size={22} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <Animated.View
+                        entering={FadeInRight.duration(200)}
+                        exiting={FadeOutRight.duration(200)}
+                        style={styles.searchBarWrapper}
+                    >
+                        <View style={styles.searchInputContainer}>
+                            <Ionicons name="search" size={18} color={Colors.textTertiary} style={styles.searchIcon} />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder="マッチ相手を検索"
+                                placeholderTextColor={Colors.textTertiary}
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                autoFocus
+                                returnKeyType="search"
+                            />
+                            {searchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                    <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setIsSearchActive(false);
+                                setSearchQuery('');
+                            }}
+                            style={styles.cancelButton}
+                        >
+                            <Text style={styles.cancelText}>キャンセル</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
             </View>
 
             <ScrollView
@@ -248,6 +302,40 @@ const styles = StyleSheet.create({
         height: 40,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    searchBarWrapper: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    searchInputContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: Colors.surfaceBorder,
+        borderRadius: BorderRadius.md,
+        paddingHorizontal: Spacing.sm,
+        height: 44,
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        color: Colors.text,
+        fontSize: FontSize.md,
+        paddingVertical: 8,
+    },
+    cancelButton: {
+        paddingHorizontal: 4,
+    },
+    cancelText: {
+        color: Colors.textSecondary,
+        fontSize: FontSize.sm,
+        fontWeight: '600',
     },
     scrollContent: {
         paddingBottom: 100,
