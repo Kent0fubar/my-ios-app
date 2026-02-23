@@ -26,15 +26,6 @@ const TabIcon = ({ name, color, focused }: { name: any, color: string, focused: 
 export default function TabLayout() {
     const { isAuthenticated, isLoading } = useAuth();
 
-    // ローディング中
-    if (isLoading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
-        );
-    }
-
     // 🛡️ 認証ガード: 未認証ユーザーはログイン画面へリダイレクト
     // URLを直接入力してもアクセス不可
     if (!isAuthenticated) {

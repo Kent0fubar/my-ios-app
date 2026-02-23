@@ -271,13 +271,10 @@ export default function ProfileScreen() {
                                     </TouchableOpacity>
                                 </View>
 
-                                <TouchableOpacity
-                                    style={styles.locationLink}
-                                    onPress={() => router.push('/profile/edit-location')}
-                                >
+                                <View style={styles.locationLink}>
                                     <Ionicons name="location" size={14} color={Colors.textTertiary} />
                                     <Text style={styles.locationLinkText}>{displayProfile.location}</Text>
-                                </TouchableOpacity>
+                                </View>
 
                                 {displayProfile.isPremium && (
                                     <View style={{ marginTop: 4 }}>
@@ -601,7 +598,6 @@ const styles = StyleSheet.create({
     locationLinkText: {
         fontSize: FontSize.sm,
         color: Colors.textTertiary,
-        textDecorationLine: 'underline',
     },
     unifiedBioSection: {
         backgroundColor: 'rgba(255, 255, 255, 0.03)',

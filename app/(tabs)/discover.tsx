@@ -21,6 +21,7 @@ import Animated, {
     interpolate,
     Extrapolation,
     runOnJS,
+    ReduceMotion,
 } from 'react-native-reanimated';
 import {
     Gesture,
@@ -50,6 +51,7 @@ const SPRING_CONFIG = {
     overshootClamping: false,
     restDisplacementThreshold: 0.01,
     restSpeedThreshold: 0.01,
+    reduceMotion: ReduceMotion.Never,
 };
 
 export type SwipeCardRef = {
@@ -83,9 +85,9 @@ const SwipeCard = forwardRef(({
         },
         swipeRight: () => {
             // マッチタブ（画面下部やや左）に向かって飛んでいく演出
-            translateX.value = withTiming(-width * 0.15, { duration: 300 });
-            translateY.value = withTiming(height / 2, { duration: 300 });
-            cardScale.value = withTiming(0.1, { duration: 300 }, (finished) => {
+            translateX.value = withTiming(-width * 0.15, { duration: 300, reduceMotion: ReduceMotion.Never });
+            translateY.value = withTiming(height / 2, { duration: 300, reduceMotion: ReduceMotion.Never });
+            cardScale.value = withTiming(0.1, { duration: 300, reduceMotion: ReduceMotion.Never }, (finished) => {
                 if (finished) runOnJS(onSwipeRight)();
             });
         },
@@ -109,9 +111,9 @@ const SwipeCard = forwardRef(({
         .onEnd((event) => {
             if (event.translationX > SWIPE_THRESHOLD || event.velocityX > 800) {
                 // LIKE (マッチタブに向かって飛んでいく)
-                translateX.value = withTiming(-width * 0.15, { duration: 300 });
-                translateY.value = withTiming(height / 2, { duration: 300 });
-                cardScale.value = withTiming(0.1, { duration: 300 }, (finished) => {
+                translateX.value = withTiming(-width * 0.15, { duration: 300, reduceMotion: ReduceMotion.Never });
+                translateY.value = withTiming(height / 2, { duration: 300, reduceMotion: ReduceMotion.Never });
+                cardScale.value = withTiming(0.1, { duration: 300, reduceMotion: ReduceMotion.Never }, (finished) => {
                     if (finished) runOnJS(onSwipeRight)();
                 });
             } else if (event.translationX < -SWIPE_THRESHOLD || event.velocityX < -800) {
@@ -399,14 +401,9 @@ export default function DiscoverScreen() {
 
     const remainingUsers = discoverUsers.slice(currentIndex);
 
-    if (isLoading && currentIndex === 0) {
-        return (
-            <View style={styles.loadingContainer}>
-                <LinearGradient colors={[Colors.background, Colors.backgroundSecondary]} style={StyleSheet.absoluteFill} />
-                <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
-        );
-    }
+    // Initial loading is now effectively handled by the global LoadingScreen in _layout.tsx
+    // But we still want to handle the case where we have no users yet after global loading
+
 
     return (
         <ScreenContainer>
