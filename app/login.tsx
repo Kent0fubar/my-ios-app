@@ -133,11 +133,6 @@ export default function LoginScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                {/* Back button */}
-                <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
-                    <Ionicons name="chevron-back" size={24} color={Colors.textSecondary} />
-                </TouchableOpacity>
-
                 {/* Header */}
                 <View style={styles.header}>
                     <LinearGradient
@@ -310,7 +305,7 @@ const styles = StyleSheet.create({
     },
     header: {
         alignItems: 'center',
-        marginTop: Spacing.xl,
+        marginTop: 80,
         marginBottom: Spacing.xl,
         gap: Spacing.md,
     },
@@ -361,6 +356,7 @@ const styles = StyleSheet.create({
         fontSize: FontSize.md,
         color: Colors.text,
         paddingVertical: 0,
+        backgroundColor: 'transparent',
     },
     errorText: {
         fontSize: FontSize.xs,

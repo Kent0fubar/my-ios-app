@@ -15,6 +15,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    withRepeat,
+    withTiming,
+    withSequence,
+    Easing
+} from 'react-native-reanimated';
+
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../src/theme';
 import { INSTRUMENTS, GENRES, SKILL_LEVELS, TAGS, LOOKING_FOR } from '../../src/data/mockData';
@@ -199,6 +210,67 @@ export default function ProfileScreen() {
         .filter(Boolean);
     const skillLevel = SKILL_LEVELS.find((s) => s.id === displayProfile.skillLevel);
 
+    const PremiumCTA = () => {
+        const scale = useSharedValue(1);
+        const pulse = useSharedValue(1);
+
+        React.useEffect(() => {
+            pulse.value = withRepeat(
+                withSequence(
+                    withTiming(1.05, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+                    withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) })
+                ),
+                -1,
+                true
+            );
+        }, []);
+
+        const animatedStyle = useAnimatedStyle(() => ({
+            transform: [{ scale: scale.value * pulse.value }],
+        }));
+
+        const onPressIn = () => {
+            scale.value = withSpring(0.95);
+        };
+
+        const onPressOut = () => {
+            scale.value = withSpring(1);
+        };
+
+        return (
+            <Animated.View style={[styles.premiumCTA, animatedStyle]}>
+                <TouchableOpacity
+                    activeOpacity={1}
+                    onPressIn={onPressIn}
+                    onPressOut={onPressOut}
+                    onPress={() => router.push('/premium')}
+                >
+                    <LinearGradient
+                        colors={['#FFD700', '#FFA500', '#FF8C00']}
+                        style={styles.premiumGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    >
+                        <View style={styles.premiumIconContainer}>
+                            <View style={styles.premiumIconBadge}>
+                                <Ionicons name="sparkles" size={20} color={Colors.gold} />
+                            </View>
+                        </View>
+                        <View style={styles.premiumTextContainer}>
+                            <Text style={styles.premiumTitle}>Premiumを体験する</Text>
+                            <Text style={styles.premiumSubtitle}>
+                                理想のパートナーとのマッチ率が3倍に
+                            </Text>
+                        </View>
+                        <View style={styles.premiumChevron}>
+                            <Ionicons name="chevron-forward" size={18} color="#fff" />
+                        </View>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
+
     return (
         <ScreenContainer>
             <ScrollView
@@ -327,29 +399,7 @@ export default function ProfileScreen() {
                 </View>
 
                 {/* Premium CTA */}
-                {!displayProfile.isPremium && (
-                    <TouchableOpacity
-                        style={styles.premiumCTA}
-                        activeOpacity={0.8}
-                        onPress={() => router.push('/premium')}
-                    >
-                        <LinearGradient
-                            colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
-                            style={styles.premiumGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                        >
-                            <Ionicons name="star" size={24} color="#fff" />
-                            <View style={styles.premiumTextContainer}>
-                                <Text style={styles.premiumTitle}>BandLink Premium</Text>
-                                <Text style={styles.premiumSubtitle}>
-                                    無制限スワイプ・プロフィールブーストを解放
-                                </Text>
-                            </View>
-                            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.7)" />
-                        </LinearGradient>
-                    </TouchableOpacity>
-                )}
+                {!displayProfile.isPremium && <PremiumCTA />}
 
 
 
@@ -691,29 +741,60 @@ const styles = StyleSheet.create({
     },
     premiumCTA: {
         marginHorizontal: Spacing.lg,
-        borderRadius: BorderRadius.xl,
-        overflow: 'hidden',
         marginBottom: Spacing.xl,
+        borderRadius: BorderRadius.xl,
         ...Shadow.md,
+        shadowColor: Colors.gold,
+        shadowOpacity: 0.5,
+        shadowRadius: 15,
+        elevation: 10,
     },
     premiumGradient: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.lg,
+        padding: 20,
+        borderRadius: BorderRadius.xl,
         gap: Spacing.md,
+    },
+    premiumIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    premiumIconBadge: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#fff',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...Shadow.sm,
     },
     premiumTextContainer: {
         flex: 1,
     },
     premiumTitle: {
         fontSize: FontSize.lg,
-        fontWeight: '800',
+        fontWeight: '900',
         color: '#fff',
+        letterSpacing: 0.5,
     },
     premiumSubtitle: {
-        fontSize: FontSize.xs,
-        color: 'rgba(255,255,255,0.8)',
-        marginTop: 2,
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.9)',
+        marginTop: 4,
+        fontWeight: '600',
+    },
+    premiumChevron: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     section: {
         marginHorizontal: Spacing.lg,

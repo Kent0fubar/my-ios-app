@@ -21,7 +21,13 @@
         "NSPhotoLibraryUsageDescription": "プロフィール写真の選択に使用します",
         "NSMicrophoneUsageDescription": "演奏サンプルの録音に使用します",
         "NSLocationWhenInUseUsageDescription": "近くのミュージシャンを探すために使用します",
+        "NSUserTrackingUsageDescription": "この識別子は、個人の興味関心に基づいた広告を表示するために使用されます。広告の非表示をご希望の場合は、プレミアムプランへの加入をご検討ください。",
         "ITSAppUsesNonExemptEncryption": false,
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
+          }
+        ],
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -31,19 +37,6 @@
         ]
       },
       "buildNumber": "1"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0A1A"
-      },
-      "package": "com.bandlink.app",
-      "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
-      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -83,6 +76,12 @@
       ],
       [
         "@react-native-google-signin/google-signin"
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
       ],
       "expo-web-browser",
       "expo-asset"

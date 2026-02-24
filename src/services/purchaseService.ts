@@ -55,16 +55,17 @@ export const purchaseService = {
      * アプリ起動時に1回だけ呼び出す
      */
     async initialize(): Promise<void> {
-        // RevenueCat SDK のインポートは動的に行う（Web対応）
         try {
-            // 実際のRevenueCat実装
-            // const Purchases = require('react-native-purchases').default;
-            // const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY;
-            // if (apiKey) {
-            //   Purchases.configure({ apiKey });
-            //   this._initialized = true;
-            // }
-            console.log('[Purchase] Initialized (mock mode)');
+            const Purchases = require('react-native-purchases').default;
+            const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY;
+
+            if (apiKey) {
+                Purchases.configure({ apiKey });
+                this._initialized = true;
+                console.log('[Purchase] RevenueCat Initialized');
+            } else {
+                console.warn('[Purchase] RevenueCat API Key is missing. Running in mock mode.');
+            }
         } catch (e) {
             console.log('[Purchase] RevenueCat not available, using mock mode');
         }
@@ -75,8 +76,9 @@ export const purchaseService = {
      */
     async identify(userId: string): Promise<void> {
         if (!this._initialized) return;
-        // Purchases.logIn(userId);
-        console.log('[Purchase] Identified user:', userId);
+        const Purchases = require('react-native-purchases').default;
+        await Purchases.logIn(userId);
+        console.log('[Purchase] Identified user in RevenueCat:', userId);
     },
 
     /**
@@ -110,16 +112,17 @@ export const purchaseService = {
                 },
             };
         }
-        // return await Purchases.getOfferings();
-        return null;
+        const Purchases = require('react-native-purchases').default;
+        return await Purchases.getOfferings();
     },
 
     /**
      * 購入フローを開始
      */
-    async purchasePackage(packageId: string): Promise<{ success: boolean; error?: string }> {
+    async purchasePackage(packageObj: any): Promise<{ success: boolean; error?: string }> {
         if (!this._initialized) {
             // モック: 開発中は常に成功とする
+            const packageId = packageObj.identifier || packageObj;
             console.log('[Purchase] Mock purchase:', packageId);
             try {
                 const { data: { user } } = await supabase.auth.getUser();
@@ -160,8 +163,28 @@ export const purchaseService = {
         }
 
         try {
-            // const { customerInfo } = await Purchases.purchasePackage(package);
-            // return { success: true };
+            const Purchases = require('react-native-purchases').default;
+            const { customerInfo } = await Purchases.purchasePackage(packageObj);
+
+            // 購入成功後、DBを更新（Webhook連携が理想だが、ここではクライアント側でも行う）
+            const isPremium = !!customerInfo.entitlements.active[ENTITLEMENTS.PREMIUM];
+            const isPro = !!customerInfo.entitlements.active[ENTITLEMENTS.PRO];
+
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                await supabase
+                    .from('profiles')
+                    .update({
+                        is_premium: isPremium,
+                        is_pro: isPro,
+                        // expires_at などの詳細は RevenueCat 側がマスターデータを持つ
+                        subscription_expires_at: isPro
+                            ? customerInfo.entitlements.active[ENTITLEMENTS.PRO]?.expirationDate
+                            : customerInfo.entitlements.active[ENTITLEMENTS.PREMIUM]?.expirationDate
+                    })
+                    .eq('id', user.id);
+            }
+
             return { success: true };
         } catch (e: any) {
             if (e.userCancelled) {
@@ -217,14 +240,19 @@ export const purchaseService = {
         }
 
         try {
-            // const customerInfo = await Purchases.getCustomerInfo();
-            // const isPremium = customerInfo.entitlements.active[ENTITLEMENTS.PREMIUM];
-            // const isPro = customerInfo.entitlements.active[ENTITLEMENTS.PRO];
+            const Purchases = require('react-native-purchases').default;
+            const customerInfo = await Purchases.getCustomerInfo();
+            const premiumEntitlement = customerInfo.entitlements.active[ENTITLEMENTS.PREMIUM];
+            const proEntitlement = customerInfo.entitlements.active[ENTITLEMENTS.PRO];
+
+            const isPro = !!proEntitlement;
+            const isPremium = !!premiumEntitlement;
+
             return {
-                isActive: false,
-                plan: 'free',
-                expiresAt: null,
-                willRenew: false,
+                isActive: isPro || isPremium,
+                plan: isPro ? 'pro' : (isPremium ? 'premium' : 'free'),
+                expiresAt: isPro ? proEntitlement.expirationDate : (isPremium ? premiumEntitlement.expirationDate : null),
+                willRenew: isPro ? proEntitlement.willRenew : (isPremium ? premiumEntitlement.willRenew : false),
             };
         } catch {
             return {
@@ -245,7 +273,8 @@ export const purchaseService = {
         }
 
         try {
-            // const customerInfo = await Purchases.restorePurchases();
+            const Purchases = require('react-native-purchases').default;
+            await Purchases.restorePurchases();
             return this.getSubscriptionInfo();
         } catch (e: any) {
             throw new Error('購入の復元に失敗しました: ' + e.message);

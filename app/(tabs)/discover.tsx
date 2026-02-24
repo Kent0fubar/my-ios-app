@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 import {
     View,
     Text,
@@ -24,6 +25,8 @@ import Animated, {
     Extrapolation,
     runOnJS,
     ReduceMotion,
+    withRepeat,
+    Easing,
 } from 'react-native-reanimated';
 import {
     Gesture,
@@ -318,6 +321,43 @@ const SwipeCard = forwardRef(({
     );
 });
 
+const PremiumHeaderButton = () => {
+    const pulse = useSharedValue(1);
+
+    useEffect(() => {
+        pulse.value = withRepeat(
+            withSequence(
+                withTiming(1.08, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+                withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) })
+            ),
+            -1,
+            true
+        );
+    }, []);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: pulse.value }],
+    }));
+
+    return (
+        <Animated.View style={[styles.premiumHeaderButtonWrapper, animatedStyle]}>
+            <TouchableOpacity
+                onPress={() => router.push('/premium')}
+                activeOpacity={0.8}
+            >
+                <LinearGradient
+                    colors={['#FFD700', '#FFA500']}
+                    style={styles.premiumButton}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                >
+                    <Ionicons name="star" size={16} color="#fff" />
+                </LinearGradient>
+            </TouchableOpacity>
+        </Animated.View>
+    );
+};
+
 export default function DiscoverScreen() {
     const { user: currentUser, profile: myProfile, refreshProfile } = useAuth();
     const [discoverUsers, setDiscoverUsers] = useState<(Profile & { matchScore?: number; distance?: number })[]>([]);
@@ -608,19 +648,7 @@ export default function DiscoverScreen() {
                             <View style={styles.filterBadge} />
                         )}
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.headerButton}
-                        onPress={() => router.push('/premium')}
-                    >
-                        <LinearGradient
-                            colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
-                            style={styles.premiumButton}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                        >
-                            <Ionicons name="star" size={16} color="#fff" />
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <PremiumHeaderButton />
                     <TouchableOpacity style={styles.headerButton} onPress={() => fetchUsers()}>
                         <Ionicons name="refresh" size={22} color={Colors.textSecondary} />
                     </TouchableOpacity>
@@ -1041,17 +1069,28 @@ const styles = StyleSheet.create({
         borderColor: Colors.background,
     },
     headerButton: {
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    premiumHeaderButtonWrapper: {
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
     },
     premiumButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 12,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
+        ...Shadow.md,
+        shadowColor: Colors.gold,
+        shadowOpacity: 0.6,
+        shadowRadius: 8,
+        elevation: 5,
     },
 
     // --- Card Stack & Base Card ---

@@ -21,6 +21,7 @@ import Animated, {
     useAnimatedStyle,
     withSpring,
     Easing,
+    interpolateColor,
 } from 'react-native-reanimated';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../src/theme';
 import { ScreenContainer } from '../src/components/common/ScreenContainer';
@@ -85,9 +86,11 @@ function PlanCard({
     onPress: () => void;
     index: number;
 }) {
+    const isSelected = useSharedValue(selected ? 1 : 0);
     const scale = useSharedValue(1);
 
     useEffect(() => {
+        isSelected.value = withTiming(selected ? 1 : 0, { duration: 250 });
         scale.value = withSpring(selected ? 1.03 : 1, {
             damping: 15,
             stiffness: 150,
@@ -97,8 +100,16 @@ function PlanCard({
     const animatedStyle = useAnimatedStyle(() => {
         return {
             transform: [{ scale: scale.value }],
-            borderColor: selected ? Colors.gold : 'transparent',
-            backgroundColor: selected ? 'rgba(212, 175, 55, 0.08)' : Colors.card,
+            borderColor: interpolateColor(
+                isSelected.value,
+                [0, 1],
+                ['rgba(212, 175, 55, 0)', Colors.gold]
+            ),
+            backgroundColor: interpolateColor(
+                isSelected.value,
+                [0, 1],
+                [Colors.card, 'rgba(212, 175, 55, 0.08)']
+            ),
         };
     });
 
@@ -122,56 +133,60 @@ function PlanCard({
     });
 
     return (
-        <AnimatedTouchableOpacity
+        <Animated.View
             entering={FadeInDown.delay(300 + index * 150).springify().damping(12)}
-            activeOpacity={0.9}
-            onPress={onPress}
-            style={[styles.planCard, animatedStyle]}
+            style={animatedStyle}
         >
-            {/* Soft background glow when selected */}
-            <AnimatedLinearGradient
-                colors={['rgba(212, 175, 55, 0)', 'rgba(212, 175, 55, 0.1)']}
-                style={[StyleSheet.absoluteFill, glowStyle]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            />
-
-            {plan.popular && (
-                <LinearGradient
-                    colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
-                    style={styles.popularBadge}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                >
-                    <Text style={styles.popularText}>人気No.1</Text>
-                </LinearGradient>
-            )}
-
-            <View style={styles.planHeader}>
-                <Text style={[styles.planName, selected && styles.planNameSelected]}>{plan.name}</Text>
-                <View style={styles.priceRow}>
-                    <Text style={styles.planPrice}>{plan.price}</Text>
-                    <Text style={styles.planPeriod}>{plan.period}</Text>
-                </View>
-            </View>
-
-            {/* Radio button */}
-            <View
-                style={[
-                    styles.radio,
-                    selected && styles.radioSelected,
-                ]}
+            <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={onPress}
+                style={styles.planCard}
             >
-                {selected && (
-                    <Animated.View entering={FadeIn.duration(200)}>
-                        <LinearGradient
-                            colors={[Colors.gold, Colors.goldGradientEnd]}
-                            style={styles.radioInner}
-                        />
-                    </Animated.View>
+                {/* Soft background glow when selected */}
+                <AnimatedLinearGradient
+                    colors={['rgba(212, 175, 55, 0)', 'rgba(212, 175, 55, 0.1)']}
+                    style={[StyleSheet.absoluteFill, glowStyle]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                />
+
+                {plan.popular && (
+                    <LinearGradient
+                        colors={[Colors.goldGradientStart, Colors.goldGradientEnd]}
+                        style={styles.popularBadge}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                    >
+                        <Text style={styles.popularText}>人気No.1</Text>
+                    </LinearGradient>
                 )}
-            </View>
-        </AnimatedTouchableOpacity>
+
+                <View style={styles.planHeader}>
+                    <Text style={[styles.planName, selected && styles.planNameSelected]}>{plan.name}</Text>
+                    <View style={styles.priceRow}>
+                        <Text style={styles.planPrice}>{plan.price}</Text>
+                        <Text style={styles.planPeriod}>{plan.period}</Text>
+                    </View>
+                </View>
+
+                {/* Radio button */}
+                <View
+                    style={[
+                        styles.radio,
+                        selected && styles.radioSelected,
+                    ]}
+                >
+                    {selected && (
+                        <Animated.View entering={FadeIn.duration(200)}>
+                            <LinearGradient
+                                colors={[Colors.gold, Colors.goldGradientEnd]}
+                                style={styles.radioInner}
+                            />
+                        </Animated.View>
+                    )}
+                </View>
+            </TouchableOpacity>
+        </Animated.View>
     );
 }
 
@@ -181,6 +196,7 @@ export default function PremiumScreen() {
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [currentSubscription, setCurrentSubscription] = useState<SubscriptionInfo | null>(null);
     const [isCheckingSub, setIsCheckingSub] = useState(true);
+    const [offerings, setOfferings] = useState<any>(null);
 
     const heroRotation = useSharedValue(0);
 
@@ -191,21 +207,25 @@ export default function PremiumScreen() {
             false
         );
 
-        // サブスクリプション状態の確認
-        async function checkSubscription() {
+        async function init() {
             try {
+                // サブスクリプション状態の確認
                 const info = await purchaseService.getSubscriptionInfo();
                 setCurrentSubscription(info);
                 if (info.isActive) {
                     setSelectedPlan(info.plan === 'pro' ? 'pro' : 'premium');
                 }
+
+                // オファリング（商品リスト）の取得
+                const offers = await purchaseService.getOfferings();
+                setOfferings(offers);
             } catch (error) {
-                console.error('Subscription check failed:', error);
+                console.error('Premium init failed:', error);
             } finally {
                 setIsCheckingSub(false);
             }
         }
-        checkSubscription();
+        init();
     }, []);
 
     const heroIconStyle = useAnimatedStyle(() => {
@@ -215,18 +235,27 @@ export default function PremiumScreen() {
     });
 
     const handlePurchase = async () => {
-        if (isPurchasing) return;
+        if (isPurchasing || !offerings) return;
 
         setIsPurchasing(true);
         try {
+            // 選択中のプランに対応するパッケージを探す
             const packageId = selectedPlan === 'pro' ? PRODUCT_IDS.PRO_MONTHLY : PRODUCT_IDS.PREMIUM_MONTHLY;
-            const result = await purchaseService.purchasePackage(packageId);
+            const pkg = offerings.current?.availablePackages?.find(
+                (p: any) => p.identifier === packageId || p.product.identifier === packageId
+            );
+
+            if (!pkg) {
+                throw new Error('選択されたプランの購入情報が見つかりませんでした。');
+            }
+
+            const result = await purchaseService.purchasePackage(pkg);
 
             if (result.success) {
                 // プロフィールの状態を更新
                 await refreshProfile();
 
-                const planName = packageId === PRODUCT_IDS.PRO_MONTHLY ? 'Pro' : 'Premium';
+                const planName = selectedPlan === 'pro' ? 'Pro' : 'Premium';
                 Alert.alert(
                     '購入完了 🎉',
                     `${planName}プランが有効になりました！すべての機能がご利用いただけます！`,
@@ -236,7 +265,7 @@ export default function PremiumScreen() {
                 Alert.alert('購入キャンセル', result.error || '購入処理が行われませんでした。');
             }
         } catch (error: any) {
-            Alert.alert('エラー', '通信エラーが発生しました。時間をおいて再度お試しください。');
+            Alert.alert('エラー', error.message || '通信エラーが発生しました。時間をおいて再度お試しください。');
         } finally {
             setIsPurchasing(false);
             // 購入後にもう一度状態を取得して反映

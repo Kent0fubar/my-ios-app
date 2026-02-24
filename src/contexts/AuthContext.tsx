@@ -7,6 +7,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types/database';
 import { profileService } from '../services/dataService';
+import { purchaseService } from '../services/purchaseService';
 import { log } from '../lib/logger';
 
 interface AuthContextType {
@@ -53,45 +54,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         }, 5000);
 
-        // 初回ロード時にセッションを取得
-        supabase.auth.getSession()
-            .then(({ data: { session } }) => {
+        // 初期セッションの取得
+        const initSession = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
                 if (!mounted) return;
-                if (__DEV__) console.log('[Auth] Initial session fetched:', !!session);
-                setSession(session);
-                setUser(session?.user ?? null);
-                setIsLoading(false);
-                clearTimeout(safetyTimer);
-            })
-            .catch(err => {
+
+                if (session) {
+                    if (__DEV__) console.log('[Auth] Restored persistent session:', session.user.email);
+                    setSession(session);
+                    setUser(session.user);
+                    purchaseService.identify(session.user.id);
+                }
+            } catch (err) {
                 log.error('[Auth] Initial session fetch error', err);
+            } finally {
                 if (mounted) {
                     setIsLoading(false);
                     clearTimeout(safetyTimer);
                 }
-            });
+            }
+        };
+
+        initSession();
 
         // 認証状態の変更を監視
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
+            async (event, newSession) => {
                 if (!mounted) return;
-                if (__DEV__) console.log('[Auth] Auth state changed:', _event, !!session);
+                if (__DEV__) console.log('[Auth] Auth state changed:', event, !!newSession);
 
-                setSession(session);
-                setUser(session?.user ?? null);
+                setSession(newSession);
+                setUser(newSession?.user ?? null);
 
-                if (session?.user) {
-                    await refreshProfile();
-                } else {
+                if (newSession?.user) {
+                    await Promise.all([
+                        refreshProfile(),
+                        purchaseService.identify(newSession.user.id)
+                    ]);
+                } else if (event === 'SIGNED_OUT') {
                     setProfile(null);
                 }
             }
         );
 
+        // アプリの状態（バックグラウンド/フォアグラウンド）を監視してリフレッシュ
+        const { AppState } = require('react-native');
+        const handleAppStateChange = async (nextAppState: string) => {
+            if (nextAppState === 'active') {
+                // アプリ復帰時にセッションをリフレッシュ
+                const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+                if (refreshedSession && mounted) {
+                    setSession(refreshedSession);
+                    setUser(refreshedSession.user);
+                }
+            }
+        };
+
+        const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
         return () => {
             mounted = false;
             clearTimeout(safetyTimer);
             subscription.unsubscribe();
+            appStateSubscription.remove();
         };
     }, [refreshProfile]);
 

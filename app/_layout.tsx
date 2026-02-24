@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize } from '../src/theme';
 import * as SplashScreen from 'expo-splash-screen';
 import { Asset } from 'expo-asset';
+import mobileAds from 'react-native-google-mobile-ads';
+import { purchaseService } from '../src/services/purchaseService';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -173,7 +175,14 @@ export default function RootLayout() {
                 const cacheImages = INSTRUMENT_ICONS.map(image => {
                     return Asset.fromModule(image).downloadAsync();
                 });
-                await Promise.all(cacheImages);
+
+                // Google Mobile Ads の初期化
+                const adInitTask = mobileAds().initialize();
+
+                // 課金サービスの初期化
+                const purchaseInitTask = purchaseService.initialize();
+
+                await Promise.all([...cacheImages, adInitTask, purchaseInitTask]);
             } catch (e) {
                 console.warn('[RootLayout] Error pre-loading assets:', e);
             } finally {

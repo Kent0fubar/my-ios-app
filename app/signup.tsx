@@ -478,6 +478,7 @@ const styles = StyleSheet.create({
         fontSize: FontSize.md,
         color: Colors.text,
         paddingVertical: 0,
+        backgroundColor: 'transparent',
     },
     errorText: {
         fontSize: FontSize.xs,
