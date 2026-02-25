@@ -45,7 +45,7 @@ export default function LoginScreen() {
     // 認証済みならタブへリダイレクト
     React.useEffect(() => {
         if (isAuthenticated && !authLoading) {
-            router.replace('/(tabs)/discover');
+            router.replace('/');
         }
     }, [isAuthenticated, authLoading]);
 
@@ -78,7 +78,7 @@ export default function LoginScreen() {
             });
 
             // 成功 → タブ画面へ遷移
-            router.replace('/(tabs)/discover');
+            router.replace('/');
         } catch (error: any) {
             // 汎用エラーメッセージでアカウント列挙を防止
             const message = getSecureAuthErrorMessage(error);
@@ -94,7 +94,7 @@ export default function LoginScreen() {
         try {
             const session = await authService.signInWithApple();
             if (session) {
-                router.replace('/(tabs)/discover');
+                router.replace('/');
             }
         } catch (error: any) {
             setErrors({ general: 'Appleログインに失敗しました\n' + (error.message || '不明なエラー') });
@@ -109,7 +109,7 @@ export default function LoginScreen() {
         try {
             const session = await authService.signInWithGoogle();
             if (session) {
-                router.replace('/(tabs)/discover');
+                router.replace('/');
             }
         } catch (error: any) {
             setErrors({ general: 'Googleログインに失敗しました\n' + (error.message || '不明なエラー') });

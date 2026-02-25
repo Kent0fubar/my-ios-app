@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     discoverContainer: {
-        marginBottom: Spacing.md,
+        marginBottom: 0,
     },
     loadingPlaceholder: {
         position: 'absolute',

@@ -274,10 +274,37 @@ export default function PremiumScreen() {
         }
     };
 
+    const handleRestore = async () => {
+        setIsCheckingSub(true);
+        try {
+            const info = await purchaseService.restorePurchases();
+            setCurrentSubscription(info);
+            await refreshProfile();
+
+            if (info.isActive) {
+                Alert.alert('復元完了', '以前の購入内容を正常に復元しました。');
+            } else {
+                Alert.alert('情報', '有効な購読情報が見つかりませんでした。');
+            }
+        } catch (error: any) {
+            Alert.alert('エラー', error.message || '復元に失敗しました。');
+        } finally {
+            setIsCheckingSub(false);
+        }
+    };
+
     const isSubscribed = currentSubscription?.isActive;
     const isCurrentPlan = isSubscribed && currentSubscription?.plan === selectedPlan;
     const canUpgrade = isSubscribed && currentSubscription?.plan === 'premium' && selectedPlan === 'pro';
     const isButtonDisabled = isPurchasing || isCheckingSub || (isSubscribed && !canUpgrade);
+
+    const selectedPackage = offerings?.current?.availablePackages?.find((p: any) => {
+        const packageId = selectedPlan === 'pro' ? PRODUCT_IDS.PRO_MONTHLY : PRODUCT_IDS.PREMIUM_MONTHLY;
+        return p.identifier === packageId || p.product.identifier === packageId;
+    });
+
+    const hasTrial = selectedPackage?.product?.introductoryPrice?.type === 'TRIAL';
+    const trialDays = selectedPackage?.product?.introductoryPrice?.periodNumberOfUnits || 7;
 
     const formatExpiresAt = (isoString?: string | null) => {
         if (!isoString) return '';
@@ -416,12 +443,14 @@ export default function PremiumScreen() {
                 </Animated.View>
 
                 {/* Free trial note */}
-                <Animated.View entering={FadeIn.delay(900)} style={styles.trialNote}>
-                    <Ionicons name="shield-checkmark" size={20} color={Colors.accent} />
-                    <Text style={styles.trialText}>
-                        7日間の無料トライアル付き。いつでもキャンセル可能。
-                    </Text>
-                </Animated.View>
+                {hasTrial && (
+                    <Animated.View entering={FadeIn.delay(900)} style={styles.trialNote}>
+                        <Ionicons name="shield-checkmark" size={20} color={Colors.accent} />
+                        <Text style={styles.trialText}>
+                            {trialDays}日間の無料トライアル付き。いつでもキャンセル可能。
+                        </Text>
+                    </Animated.View>
+                )}
             </Animated.ScrollView>
 
             {/* Subscribe button (fixed at bottom) */}
@@ -452,11 +481,11 @@ export default function PremiumScreen() {
                         ) : (
                             <>
                                 <Text style={styles.subscribeText}>
-                                    {canUpgrade ? 'Proにアップグレード' : '無料トライアルを開始'}
+                                    {canUpgrade ? 'Proにアップグレード' : (hasTrial ? '無料トライアルを開始' : '今すぐ購読')}
                                 </Text>
                                 <Text style={styles.subscribeSubtext}>
                                     {selectedPlan === 'pro' ? '¥1,980/月' : '¥980/月'}
-                                    {canUpgrade ? '' : ' • 7日間無料'}
+                                    {canUpgrade ? '' : (hasTrial ? ` • ${trialDays}日間無料` : '')}
                                 </Text>
                             </>
                         )}
@@ -465,6 +494,14 @@ export default function PremiumScreen() {
                 <Text style={styles.termsText}>
                     購読はいつでもキャンセルできます。利用規約に同意します。
                 </Text>
+
+                <TouchableOpacity
+                    onPress={handleRestore}
+                    style={styles.restoreButton}
+                    disabled={isPurchasing || isCheckingSub}
+                >
+                    <Text style={styles.restoreButtonText}>購入内容を復元する</Text>
+                </TouchableOpacity>
             </Animated.View>
         </ScreenContainer>
     );
@@ -809,6 +846,18 @@ const styles = StyleSheet.create({
         color: Colors.textTertiary,
         textAlign: 'center',
         fontWeight: '500',
+    },
+    restoreButton: {
+        alignSelf: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        marginTop: 4,
+    },
+    restoreButtonText: {
+        fontSize: 12,
+        color: Colors.gold,
+        fontWeight: '600',
+        textDecorationLine: 'underline',
     },
 });
 

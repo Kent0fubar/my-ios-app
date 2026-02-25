@@ -11,7 +11,8 @@
                 "simulator": false
             },
             "env": {
-                "APP_ENV": "development"
+                "APP_ENV": "development",
+                "EXPO_PUBLIC_APP_SCHEME": "bandlink-dev"
             }
         },
         "preview": {
@@ -20,7 +21,8 @@
                 "resourceClass": "m-medium"
             },
             "env": {
-                "APP_ENV": "preview"
+                "APP_ENV": "preview",
+                "EXPO_PUBLIC_APP_SCHEME": "bandlink-preview"
             }
         },
         "production": {
@@ -29,7 +31,8 @@
                 "resourceClass": "m-medium"
             },
             "env": {
-                "APP_ENV": "production"
+                "APP_ENV": "production",
+                "EXPO_PUBLIC_APP_SCHEME": "bandlink"
             }
         }
     },

@@ -12,16 +12,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             name: 'BandLink (Dev)',
             bundleIdentifier: 'com.bandlink.app.dev',
             package: 'com.bandlink.app.dev',
+            scheme: 'bandlink-dev',
         },
         preview: {
             name: 'BandLink (Preview)',
             bundleIdentifier: 'com.bandlink.app.preview',
             package: 'com.bandlink.app.preview',
+            scheme: 'bandlink-preview',
         },
         production: {
             name: 'BandLink',
             bundleIdentifier: 'com.bandlink.app',
             package: 'com.bandlink.app',
+            scheme: 'bandlink',
         },
     }[appEnv as AppEnv];
 
@@ -33,6 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ...config,
         name: environmentConfig.name,
         slug: 'bandlink',
+        scheme: environmentConfig.scheme,
         version,
         ios: {
             ...config.ios,

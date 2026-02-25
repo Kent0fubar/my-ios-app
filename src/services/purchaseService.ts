@@ -97,6 +97,14 @@ export const purchaseService = {
                                 description: '無制限スワイプ、高度なフィルター',
                                 priceString: '¥980',
                                 price: 980,
+                                introductoryPrice: {
+                                    period: 'P7D',
+                                    periodUnit: 'DAY',
+                                    periodNumberOfUnits: 7,
+                                    price: 0,
+                                    priceString: '無料',
+                                    type: 'TRIAL',
+                                }
                             },
                         },
                         {
@@ -106,6 +114,14 @@ export const purchaseService = {
                                 description: '全機能アンロック + プロフィールブースト',
                                 priceString: '¥1,980',
                                 price: 1980,
+                                introductoryPrice: {
+                                    period: 'P7D',
+                                    periodUnit: 'DAY',
+                                    periodNumberOfUnits: 7,
+                                    price: 0,
+                                    priceString: '無料',
+                                    type: 'TRIAL',
+                                }
                             },
                         },
                     ],

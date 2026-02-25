@@ -655,8 +655,6 @@ export default function DiscoverScreen() {
                 </View>
             </View>
 
-            {/* 広告セクション（無料会員のみ） - フロー内に配置 */}
-            <AdBanner placement="discover" />
 
             <View style={styles.cardStack}>
                 {isLoading ? (
@@ -677,7 +675,7 @@ export default function DiscoverScreen() {
                                     user={user}
                                     isFirst={isFirst}
                                     isSwipeDisabled={isSwipeDisabled}
-                                    cardHeight={isPremium ? height * 0.63 : height * 0.58}
+                                    cardHeight={isPremium ? height * 0.63 : height * 0.55}
                                     onLimitReached={handleLimitReached}
                                     onSwipeLeft={() => handleSwipe('nope')}
                                     onSwipeRight={() => handleSwipe('like')}
@@ -1014,6 +1012,8 @@ export default function DiscoverScreen() {
                     </View>
                 </View>
             </Modal>
+            {/* 広告セクション（無料会員のみ） - 画面最下部に配置 */}
+            <AdBanner placement="discover" />
         </ScreenContainer>
     );
 }

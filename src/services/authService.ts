@@ -43,15 +43,20 @@ export const authService = {
                         const linking = require('expo-linking');
                         let baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '.supabase.co/functions/v1/auth-success');
 
-                        // 現在のアプリのスキームを取得 (例: bandlink)
-                        try {
-                            const currentUrl = linking.createURL('');
-                            const scheme = currentUrl.split(':')[0];
-                            if (scheme && baseUrl) {
-                                baseUrl += `?scheme=${scheme}`;
+                        // 環境変数から固定のスキームを取得、なければ動的に取得
+                        let scheme = process.env.EXPO_PUBLIC_APP_SCHEME;
+
+                        if (!scheme) {
+                            try {
+                                const currentUrl = linking.createURL('');
+                                scheme = currentUrl.split(':')[0];
+                            } catch (e) {
+                                log.error('[Auth] Failed to get current scheme', e);
                             }
-                        } catch (e) {
-                            log.error('[Auth] Failed to get current scheme', e);
+                        }
+
+                        if (scheme && baseUrl) {
+                            baseUrl += `?scheme=${scheme}`;
                         }
 
                         if (__DEV__) console.log('[Auth] Generated signUp redirectTo URL:', baseUrl);

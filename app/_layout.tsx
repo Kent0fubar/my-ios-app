@@ -40,6 +40,7 @@ if (__DEV__) {
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import { GlobalErrorBoundary } from '../src/components/common/GlobalErrorBoundary';
 import { LoadingScreen } from '../src/components/common/LoadingScreen';
+import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 
 // プリロードするアセット
 const INSTRUMENT_ICONS = [
@@ -127,6 +128,7 @@ function AuthLoadedLayout() {
                 <Stack.Screen name="login" />
                 <Stack.Screen name="signup" />
                 <Stack.Screen name="reset-password" />
+                <Stack.Screen name="onboarding" />
                 <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
                 <Stack.Screen
                     name="premium"
@@ -182,7 +184,10 @@ export default function RootLayout() {
                 // 課金サービスの初期化
                 const purchaseInitTask = purchaseService.initialize();
 
-                await Promise.all([...cacheImages, adInitTask, purchaseInitTask]);
+                // トラッキング許可のリクエスト (iOS)
+                const trackingTask = requestTrackingPermissionsAsync();
+
+                await Promise.all([...cacheImages, adInitTask, purchaseInitTask, trackingTask]);
             } catch (e) {
                 console.warn('[RootLayout] Error pre-loading assets:', e);
             } finally {
