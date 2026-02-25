@@ -25,8 +25,8 @@ import { AdBanner } from '../../src/components/common/AdBanner';
 
 export default function MatchesScreen() {
     const { user, profile, refreshProfile } = useAuth();
-    // 判定ロジックを強化: is_premiumフラグか、subscription_planがfree以外ならPremiumとみなす
-    const isPremium = profile?.is_premium === true || (!!profile?.subscription_plan && profile.subscription_plan !== 'free');
+    // 判定ロジック: is_premium または is_pro フラグが true ならプレミアム特典を有効にする
+    const isPremium = profile?.is_premium === true || profile?.is_pro === true;
 
     const [matches, setMatches] = useState<any[]>([]);
     const [likesYou, setLikesYou] = useState<any[]>([]);

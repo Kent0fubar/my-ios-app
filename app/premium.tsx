@@ -218,9 +218,17 @@ export default function PremiumScreen() {
 
                 // オファリング（商品リスト）の取得
                 const offers = await purchaseService.getOfferings();
+                if (!offers || !offers.current) {
+                    console.warn('[Premium] No offerings found');
+                }
                 setOfferings(offers);
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Premium init failed:', error);
+                // ユーザーに状況を知らせる
+                Alert.alert(
+                    'ストア接続エラー',
+                    'プラン情報の取得に失敗しました。Apple IDのログイン状態やネットワークを確認してください。\n' + (error.message || '')
+                );
             } finally {
                 setIsCheckingSub(false);
             }
@@ -235,7 +243,15 @@ export default function PremiumScreen() {
     });
 
     const handlePurchase = async () => {
-        if (isPurchasing || !offerings) return;
+        if (isPurchasing) return;
+
+        if (!offerings || !offerings.current) {
+            Alert.alert(
+                '準備中',
+                '商品の読み込みが終わっていないか、通信エラーが発生しています。しばらく待ってから再度お試しください。'
+            );
+            return;
+        }
 
         setIsPurchasing(true);
         try {
@@ -246,11 +262,11 @@ export default function PremiumScreen() {
             );
 
             if (!pkg) {
-                throw new Error('選択されたプランの購入情報が見つかりませんでした。');
+                throw new Error('選択されたプランの商品情報がApp Storeから取得できませんでした。App Store Connectの設定を確認してください。');
             }
 
             const result = await purchaseService.purchasePackage(pkg);
-
+            // ... existing success logic ...
             if (result.success) {
                 // プロフィールの状態を更新
                 await refreshProfile();
@@ -262,15 +278,20 @@ export default function PremiumScreen() {
                     [{ text: 'OK', onPress: () => router.canGoBack() ? router.back() : router.replace('/') }]
                 );
             } else {
-                Alert.alert('購入キャンセル', result.error || '購入処理が行われませんでした。');
+                // キャンセル以外の場合のみアラート
+                if (result.error && !result.error.includes('キャンセル')) {
+                    Alert.alert('購入失敗', result.error);
+                }
             }
         } catch (error: any) {
             Alert.alert('エラー', error.message || '通信エラーが発生しました。時間をおいて再度お試しください。');
         } finally {
             setIsPurchasing(false);
             // 購入後にもう一度状態を取得して反映
-            const info = await purchaseService.getSubscriptionInfo();
-            setCurrentSubscription(info);
+            try {
+                const info = await purchaseService.getSubscriptionInfo();
+                setCurrentSubscription(info);
+            } catch (e) { }
         }
     };
 
