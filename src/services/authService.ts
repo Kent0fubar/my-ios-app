@@ -38,8 +38,25 @@ export const authService = {
                 password,
                 options: {
                     data: { name }, // メタデータとして名前を保存
-                    // 認証後のリダイレクト先をアプリに設定（ディープリンク）
-                    emailRedirectTo: require('expo-linking').createURL('login'),
+                    // 認証後のリダイレクト先を中間ページ（Edge Function）に設定
+                    emailRedirectTo: (() => {
+                        const linking = require('expo-linking');
+                        let baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '.supabase.co/functions/v1/auth-success');
+
+                        // 現在のアプリのスキームを取得 (例: bandlink)
+                        try {
+                            const currentUrl = linking.createURL('');
+                            const scheme = currentUrl.split(':')[0];
+                            if (scheme && baseUrl) {
+                                baseUrl += `?scheme=${scheme}`;
+                            }
+                        } catch (e) {
+                            log.error('[Auth] Failed to get current scheme', e);
+                        }
+
+                        if (__DEV__) console.log('[Auth] Generated signUp redirectTo URL:', baseUrl);
+                        return baseUrl;
+                    })(),
                 },
             });
 

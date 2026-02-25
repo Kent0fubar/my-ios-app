@@ -1,22 +1,8 @@
 module.exports = {
-    preset: 'ts-jest',
-    testEnvironment: 'node',
-    roots: ['<rootDir>/src', '<rootDir>/__tests__'],
-    testMatch: ['**/__tests__/**/*.test.ts'],
-    moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
+    preset: 'jest-expo',
     transform: {
-        '^.+\\.tsx?$': ['ts-jest', {
-            tsconfig: {
-                jsx: 'react-jsx',
-                esModuleInterop: true,
-                allowJs: true,
-                strict: false,
-                noEmit: true,
-                moduleResolution: 'node',
-            },
-        }],
+        '^.+\\.(js|ts|tsx)$': 'babel-jest',
     },
-    moduleNameMapper: {
-        '^@/(.*)$': '<rootDir>/src/$1',
-    },
+    testMatch: ['**/__tests__/**/*.test.[jt]s?(x)'],
+    moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
 };

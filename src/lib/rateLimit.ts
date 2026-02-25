@@ -34,7 +34,7 @@ const RATE_LIMITS: Record<string, RateLimitConfig> = {
 
     // 認証: 1時間あたり10回（ブルートフォース防止）
     'auth:login': { maxRequests: 20, windowMs: 60 * 60 * 1000 },
-    'auth:signup': { maxRequests: 3, windowMs: 60 * 60 * 1000 },
+    'auth:signup': { maxRequests: 100, windowMs: 60 * 60 * 1000 },
 
     // ファイルアップロード: 1時間あたり10回
     'upload:file': { maxRequests: 10, windowMs: 60 * 60 * 1000 },

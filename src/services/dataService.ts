@@ -365,8 +365,9 @@ export const discoveryService = {
 
             if (swipeError) throw swipeError;
 
-            // LIKE/SUPERLIKEの場合、相手も自分をLIKEしているかチェック
+            // マッチのチェック
             if (direction === 'like' || direction === 'superlike') {
+                // 相手も自分をLIKEしているかチェック
                 const { data: reverseSwipe } = await supabase
                     .from('swipes')
                     .select('id')
@@ -376,31 +377,16 @@ export const discoveryService = {
                     .single();
 
                 if (reverseSwipe) {
-                    // 既存のマッチがないか再確認
-                    const { data: existingMatch } = await supabase
+                    // マッチ成立（DBトリガーにより自動作成されるが、UIのために確認）
+                    // 少し待つか、再取得する
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    const { data: match } = await supabase
                         .from('matches')
                         .select('id')
                         .or(`and(user1_id.eq.${swiperId},user2_id.eq.${swipedId}),and(user1_id.eq.${swipedId},user2_id.eq.${swiperId})`)
                         .maybeSingle();
 
-                    if (existingMatch) {
-                        return { matched: true, matchId: existingMatch.id };
-                    }
-
-                    // マッチ成立！
-                    const matchData: any = {
-                        user1_id: swiperId,
-                        user2_id: swipedId,
-                    };
-
-                    const { data: match, error: matchError } = await supabase
-                        .from('matches')
-                        .insert(matchData)
-                        .select()
-                        .single();
-
-                    if (matchError) throw matchError;
-                    return { matched: true, matchId: match.id };
+                    return { matched: !!match, matchId: match?.id };
                 }
             }
 
@@ -760,38 +746,7 @@ export const reportService = {
                 throw insertError;
             }
 
-            // 凍結ロジック: 重複しない通報者（ユニークユーザー）の数が一定数（例: 5名）溜まったら自動凍結
-            const SUSPENSION_THRESHOLD = 5;
-
-            // 通報者一覧を取得
-            const { data: reports, error: countError } = await supabase
-                .from('reports')
-                .select('reporter_id')
-                .eq('reported_id', reportedId);
-
-            if (countError) {
-                console.warn('[reportService] Count query failed (non-fatal):', countError.message);
-            }
-
-            // reporter_idのユニークな数を計算
-            const uniqueReporterCount = reports
-                ? new Set(reports.map(r => r.reporter_id)).size
-                : 0;
-
-            if (uniqueReporterCount >= SUSPENSION_THRESHOLD) {
-                console.log(`[reportService] User ${reportedId} reached unique reporter threshold (${uniqueReporterCount}). Suspending...`);
-                const { error: suspendError } = await supabase
-                    .from('profiles')
-                    .update({
-                        is_suspended: true,
-                        suspended_at: new Date().toISOString()
-                    })
-                    .eq('id', reportedId);
-
-                if (suspendError) {
-                    console.error('[reportService] Suspension update failed:', suspendError.message);
-                }
-            }
+            // 凍結ロジックはサーバーサイド（DBトリガー）で安全に実行されます
         });
     },
 };
