@@ -12,6 +12,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { log } from '../lib/logger';
 
 // 通知のデフォルト動作設定
 Notifications.setNotificationHandler({
@@ -38,7 +39,7 @@ export const notificationService = {
     async registerForPushNotifications(): Promise<string | null> {
         // デバイスチェック（シミュレータでは動作しない）
         if (!Device.default.isDevice) {
-            console.log('[Notification] Must use physical device for Push Notifications');
+            log.info('[NotificationService] Must use physical device for Push Notifications');
             return null;
         }
 
@@ -53,7 +54,7 @@ export const notificationService = {
         }
 
         if (finalStatus !== 'granted') {
-            console.log('[Notification] Permission not granted');
+            log.info('[NotificationService] Permission not granted');
             return null;
         }
 
@@ -63,14 +64,12 @@ export const notificationService = {
                 projectId: Device.default.expoConfig?.extra?.eas?.projectId,
             });
             const token = tokenData.data;
-            console.log('[Notification] Push token:', token);
+            log.info('[NotificationService] Push token registered', token);
 
-            // トークンをSupabaseに保存
             await this.savePushToken(token);
-
             return token;
-        } catch (e) {
-            console.error('[Notification] Failed to get push token:', e);
+        } catch (e: any) {
+            log.error('[NotificationService] Failed to get push token', e);
             return null;
         }
     },

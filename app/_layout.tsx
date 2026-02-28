@@ -129,6 +129,7 @@ function AuthLoadedLayout() {
                 <Stack.Screen name="signup" />
                 <Stack.Screen name="reset-password" />
                 <Stack.Screen name="onboarding" />
+                <Stack.Screen name="update-password" />
                 <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
                 <Stack.Screen
                     name="premium"

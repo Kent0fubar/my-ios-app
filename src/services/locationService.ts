@@ -4,6 +4,7 @@
  */
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
+import { log } from '../lib/logger';
 
 export interface LocationData {
     latitude: number;
@@ -62,8 +63,8 @@ export const locationService = {
                 district: address?.district || undefined,
                 displayName,
             };
-        } catch (e) {
-            console.error('[Location] Failed to get location:', e);
+        } catch (e: any) {
+            log.error('[LocationService] Failed to get location', e);
             return null;
         }
     },
@@ -88,7 +89,8 @@ export const locationService = {
             .eq('id', userId);
 
         if (error) {
-            console.error('[Location] Failed to update profile:', error);
+            log.error('[LocationService] Failed to update profile location', error);
+            throw error;
         }
 
         return location;

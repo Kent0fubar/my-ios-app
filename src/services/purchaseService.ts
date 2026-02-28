@@ -60,6 +60,11 @@ export const purchaseService = {
             const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY;
 
             if (apiKey) {
+                // 開発中は詳細ログを抑制（商品未登録の警告を非表示にする）
+                // 本番では LOG_LEVEL.ERROR のみに絞る
+                if (__DEV__) {
+                    Purchases.setLogLevel(require('react-native-purchases').LOG_LEVEL.ERROR);
+                }
                 Purchases.configure({ apiKey });
                 this._initialized = true;
                 console.log('[Purchase] RevenueCat Initialized');

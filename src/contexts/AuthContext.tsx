@@ -9,6 +9,8 @@ import { Profile } from '../types/database';
 import { profileService } from '../services/dataService';
 import { purchaseService } from '../services/purchaseService';
 import { log } from '../lib/logger';
+import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 
 interface AuthContextType {
     session: Session | null;
@@ -65,6 +67,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setSession(session);
                     setUser(session.user);
                     purchaseService.identify(session.user.id);
+
+                    // プロフィールを取得してからローディングを完了する
+                    // これにより、index.tsxでprofileがnullのまま判定されることを防ぐ
+                    await refreshProfile();
                 }
             } catch (err) {
                 log.error('[Auth] Initial session fetch error', err);
@@ -78,6 +84,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         initSession();
 
+        // ディープリンクからトークンを取得してセッションを確立するヘルパー
+        const handleDeepLink = async (url: string | null) => {
+            if (!url) return;
+            if (__DEV__) console.log('[Auth] Received deep link:', url);
+
+            try {
+                // カスタムスキームURLのパース（bandlink://...）
+                // new URL() はカスタムスキームでは失敗する場合があるため、手動パースする
+                const queryString = url.includes('?') ? url.split('?')[1]?.split('#')[0] : '';
+                const hashString = url.includes('#') ? url.split('#')[1] : '';
+                const queryParams = new URLSearchParams(queryString || '');
+                const hashParams = new URLSearchParams(hashString || '');
+
+                // リカバリーフローかどうかの判定（queryまたはhashの両方をチェック）
+                const recoveryType = queryParams.get('type') || hashParams.get('type');
+                const isRecovery = recoveryType === 'recovery';
+
+                // 1. PKCE フロー: ?code=... 形式
+                const code = queryParams.get('code');
+                if (code) {
+                    if (__DEV__) console.log('[Auth] Exchanging PKCE code for session');
+                    const { error } = await supabase.auth.exchangeCodeForSession(code);
+                    if (error) {
+                        log.error('[Auth] Failed to exchange code for session', error);
+                    } else {
+                        if (__DEV__) console.log('[Auth] Session established from PKCE code exchange');
+                        if (isRecovery) {
+                            if (__DEV__) console.log('[Auth] Recovery flow detected, navigating to update-password');
+                            router.replace('/update-password');
+                        }
+                    }
+                    return;
+                }
+
+                // 2. トークンハッシュ方式: ?token_hash=...&type=recovery
+                const tokenHash = queryParams.get('token_hash');
+                const type = queryParams.get('type');
+                if (tokenHash && type) {
+                    if (__DEV__) console.log('[Auth] Verifying OTP with token_hash, type:', type);
+                    const { error } = await supabase.auth.verifyOtp({
+                        token_hash: tokenHash,
+                        type: type as any,
+                    });
+                    if (error) {
+                        log.error('[Auth] Failed to verify OTP from deep link', error);
+                    } else {
+                        if (__DEV__) console.log('[Auth] Session established from token_hash verification');
+                        if (isRecovery) {
+                            if (__DEV__) console.log('[Auth] Recovery flow detected, navigating to update-password');
+                            router.replace('/update-password');
+                        }
+                    }
+                    return;
+                }
+
+                // 3. Implicit フロー: #access_token=...&refresh_token=...&type=recovery
+                const accessToken = hashParams.get('access_token');
+                const refreshToken = hashParams.get('refresh_token');
+                if (accessToken && refreshToken) {
+                    if (__DEV__) console.log('[Auth] Setting session from deep link tokens');
+                    const { error } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                    });
+                    if (error) {
+                        log.error('[Auth] Failed to set session from deep link', error);
+                    } else {
+                        if (__DEV__) console.log('[Auth] Session established from email verification deep link');
+                        // Implicit フローでは type は hash に含まれる
+                        if (isRecovery) {
+                            if (__DEV__) console.log('[Auth] Recovery flow detected, navigating to update-password');
+                            router.replace('/update-password');
+                        }
+                    }
+                }
+            } catch (e) {
+                log.error('[Auth] Deep link handling error', e);
+            }
+        };
+
+        // アプリが起動した際の初期URLを処理（メールリンクをタップしてアプリが起動した場合）
+        Linking.getInitialURL().then(handleDeepLink);
+
+        // アプリが起動中にディープリンクを受け取った場合
+        const linkingSubscription = Linking.addEventListener('url', ({ url }) => {
+            handleDeepLink(url);
+        });
+
         // 認証状態の変更を監視
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, newSession) => {
@@ -86,6 +180,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 setSession(newSession);
                 setUser(newSession?.user ?? null);
+
+                if (event === 'PASSWORD_RECOVERY') {
+                    // パスワードリセットリンクからアプリに戻った場合
+                    // 新しいパスワード設定画面に遷移
+                    router.replace('/update-password');
+                    return;
+                }
 
                 if (newSession?.user) {
                     await Promise.all([
@@ -118,6 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             clearTimeout(safetyTimer);
             subscription.unsubscribe();
             appStateSubscription.remove();
+            linkingSubscription.remove();
         };
     }, [refreshProfile]);
 

@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.sm,
-        backgroundColor: Colors.surface,
+        backgroundColor: '#1E1E24',
         borderRadius: BorderRadius.lg,
         paddingHorizontal: Spacing.md,
         paddingVertical: 14,
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
         fontSize: FontSize.md,
         color: Colors.text,
         paddingVertical: 0,
-        backgroundColor: 'transparent',
+        backgroundColor: '#1E1E24',
     },
     errorText: {
         fontSize: FontSize.xs,

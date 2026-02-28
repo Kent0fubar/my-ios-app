@@ -38,30 +38,10 @@ export const authService = {
                 password,
                 options: {
                     data: { name }, // メタデータとして名前を保存
-                    // 認証後のリダイレクト先を中間ページ（Edge Function）に設定
-                    emailRedirectTo: (() => {
-                        const linking = require('expo-linking');
-                        let baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.replace('.supabase.co', '.supabase.co/functions/v1/auth-success');
-
-                        // 環境変数から固定のスキームを取得、なければ動的に取得
-                        let scheme = process.env.EXPO_PUBLIC_APP_SCHEME;
-
-                        if (!scheme) {
-                            try {
-                                const currentUrl = linking.createURL('');
-                                scheme = currentUrl.split(':')[0];
-                            } catch (e) {
-                                log.error('[Auth] Failed to get current scheme', e);
-                            }
-                        }
-
-                        if (scheme && baseUrl) {
-                            baseUrl += `?scheme=${scheme}`;
-                        }
-
-                        if (__DEV__) console.log('[Auth] Generated signUp redirectTo URL:', baseUrl);
-                        return baseUrl;
-                    })(),
+                    // Edge Function を中間ページとして使用
+                    // Safari が HTTPS→カスタムスキームの302リダイレクトをブロックするため、
+                    // Edge Function 経由で JavaScript によるリダイレクトを行う
+                    emailRedirectTo: `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/auth-callback`,
                 },
             });
 
@@ -162,13 +142,34 @@ export const authService = {
     },
 
     /**
-     * パスワードリセットメール送信
+     * パスワードリセット用OTPメール送信
      */
     async resetPassword(email: string) {
         return withRateLimit('auth:login', email, async () => {
             const { error } = await supabase.auth.resetPasswordForEmail(email);
             if (error) throw error;
         });
+    },
+
+    /**
+     * OTPを検証してパスワードを更新
+     */
+    async verifyOtpAndUpdatePassword(email: string, token: string, newPassword: string) {
+        // OTP を検証してセッションを確立
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: 'recovery',
+        });
+        if (verifyError) throw verifyError;
+
+        // セッションが確立されたらパスワードを更新
+        const { error: updateError } = await supabase.auth.updateUser({
+            password: newPassword,
+        });
+        if (updateError) throw updateError;
+
+        return data;
     },
 
     /**

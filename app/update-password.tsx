@@ -1,11 +1,6 @@
 /**
- * 新規登録画面
- * セキュリティ対策:
- * - パスワード強度インジケーター
- * - パスワード確認フィールド
- * - 入力バリデーション & サニタイズ
- * - レート制限（authService経由、1時間3回まで）
- * - 汎用エラーメッセージ（既存アカウントでも「確認メール送信済み」と表示）
+ * 新しいパスワード設定画面
+ * パスワードリセットリンクからアプリに戻った後に表示される
  */
 import React, { useState, useRef } from 'react';
 import {
@@ -18,78 +13,39 @@ import {
     Platform,
     ScrollView,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../src/theme';
-import { authService } from '../src/services/authService';
+import { supabase } from '../src/lib/supabase';
 import {
-    validateEmail,
     validatePassword,
     validatePasswordConfirm,
-    sanitizeEmail,
     getPasswordStrength,
-    getSecureAuthErrorMessage,
 } from '../src/lib/security';
 import { ErrorBanner } from '../src/components/ErrorBanner';
 
-export default function SignupScreen() {
-    const [email, setEmail] = useState('');
+export default function UpdatePasswordScreen() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
     const [errors, setErrors] = useState<{
-        email?: string;
         password?: string;
         confirmPassword?: string;
         general?: string;
     }>({});
+    const [success, setSuccess] = useState(false);
 
-    const passwordRef = useRef<TextInput>(null);
     const confirmRef = useRef<TextInput>(null);
-
-    const handleAppleSignup = async () => {
-        setIsLoading(true);
-        setErrors({});
-        try {
-            const session = await authService.signInWithApple();
-            if (session) {
-                router.replace('/');
-            }
-        } catch (error: any) {
-            setErrors({ general: 'Appleでのアカウント作成に失敗しました\n' + (error.message || '不明なエラー') });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleGoogleSignup = async () => {
-        setIsLoading(true);
-        setErrors({});
-        try {
-            const session = await authService.signInWithGoogle();
-            if (session) {
-                router.replace('/');
-            }
-        } catch (error: any) {
-            setErrors({ general: 'Googleでのアカウント作成に失敗しました\n' + (error.message || '不明なエラー') });
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const passwordStrength = getPasswordStrength(password);
 
-    const handleSignup = async () => {
-        // 全フィールドのバリデーション
+    const handleUpdate = async () => {
         const newErrors: typeof errors = {};
-
-        const emailResult = validateEmail(email);
-        if (!emailResult.isValid) newErrors.email = emailResult.error!;
 
         const passwordResult = validatePassword(password);
         if (!passwordResult.isValid) newErrors.password = passwordResult.error!;
@@ -106,30 +62,23 @@ export default function SignupScreen() {
         setIsLoading(true);
 
         try {
-            await authService.signUp({
-                email: sanitizeEmail(email),
+            const { error } = await supabase.auth.updateUser({
                 password,
-                name: '',
             });
 
-            // 常に同じメッセージを表示（既存アカウントでも同じ）
-            // → アカウント列挙攻撃を防止
+            if (error) throw error;
+
             setSuccess(true);
         } catch (error: any) {
-            const message = getSecureAuthErrorMessage(error);
-
-            // 「既に登録済み」の場合でも成功メッセージを表示（セキュリティ対策）
-            if (message.includes('確認メール')) {
-                setSuccess(true);
-            } else {
-                setErrors({ general: message });
-            }
+            setErrors({
+                general: error.message || 'パスワードの更新に失敗しました。もう一度お試しください。',
+            });
         } finally {
             setIsLoading(false);
         }
     };
 
-    // 成功メッセージ画面
+    // 成功画面
     if (success) {
         return (
             <View style={styles.container}>
@@ -139,29 +88,25 @@ export default function SignupScreen() {
                 />
                 <View style={styles.successContainer}>
                     <View style={styles.successIcon}>
-                        <Ionicons name="mail-outline" size={48} color={Colors.accent} />
+                        <Ionicons name="checkmark-circle" size={48} color={Colors.accent} />
                     </View>
-                    <Text style={styles.successTitle}>確認メールを送信しました ✉️</Text>
+                    <Text style={styles.successTitle}>パスワードを更新しました 🎉</Text>
                     <Text style={styles.successText}>
-                        {sanitizeEmail(email)} に確認メールを送信しました。{'\n'}
-                        メール内のリンクをクリックして{'\n'}
-                        アカウントの認証を完了してください。
-                    </Text>
-                    <Text style={styles.successNote}>
-                        ※ メールが届かない場合は、迷惑メールフォルダを確認してください
+                        新しいパスワードが正常に設定されました。{'\n'}
+                        次回から新しいパスワードでログインできます。
                     </Text>
                     <TouchableOpacity
-                        style={styles.backToLoginButton}
+                        style={styles.successButton}
                         activeOpacity={0.8}
-                        onPress={() => router.replace('/login')}
+                        onPress={() => router.replace('/')}
                     >
                         <LinearGradient
                             colors={[Colors.primary, Colors.secondary]}
-                            style={styles.backToLoginGradient}
+                            style={styles.successButtonGradient}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
                         >
-                            <Text style={styles.backToLoginText}>ログイン画面へ</Text>
+                            <Text style={styles.successButtonText}>アプリに戻る</Text>
                         </LinearGradient>
                     </TouchableOpacity>
                 </View>
@@ -184,51 +129,26 @@ export default function SignupScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-
                 {/* Header */}
                 <View style={styles.header}>
-                    <Text style={styles.title}>アカウント作成</Text>
+                    <View style={styles.lockIcon}>
+                        <Ionicons name="lock-open-outline" size={36} color={Colors.primary} />
+                    </View>
+                    <Text style={styles.title}>新しいパスワードを設定</Text>
                     <Text style={styles.subtitle}>
-                        BandLinkで音楽仲間を見つけましょう
+                        安全な新しいパスワードを入力してください
                     </Text>
                 </View>
 
                 {/* General error */}
                 {errors.general && <ErrorBanner message={errors.general} />}
 
-
-                {/* Email input */}
+                {/* New password input */}
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>メールアドレス</Text>
-                    <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
-                        <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="example@email.com"
-                            placeholderTextColor={Colors.textTertiary}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            autoComplete="email"
-                            autoCorrect={false}
-                            value={email}
-                            onChangeText={(text) => {
-                                setEmail(text);
-                                if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
-                            }}
-                            returnKeyType="next"
-                            onSubmitEditing={() => passwordRef.current?.focus()}
-                        />
-                    </View>
-                    {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-                </View>
-
-                {/* Password input */}
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>パスワード</Text>
+                    <Text style={styles.label}>新しいパスワード</Text>
                     <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
                         <Ionicons name="lock-closed-outline" size={20} color={Colors.textTertiary} />
                         <TextInput
-                            ref={passwordRef}
                             style={styles.input}
                             placeholder="8文字以上の安全なパスワード"
                             placeholderTextColor={Colors.textTertiary}
@@ -317,7 +237,7 @@ export default function SignupScreen() {
                                     setErrors((prev) => ({ ...prev, confirmPassword: undefined }));
                             }}
                             returnKeyType="done"
-                            onSubmitEditing={handleSignup}
+                            onSubmitEditing={handleUpdate}
                         />
                         <TouchableOpacity
                             onPress={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -335,71 +255,26 @@ export default function SignupScreen() {
                     )}
                 </View>
 
-                {/* Terms */}
-                <Text style={styles.termsText}>
-                    新規登録をすることで、
-                    <Text style={styles.termsLink}>利用規約</Text>
-                    と
-                    <Text style={styles.termsLink}>プライバシーポリシー</Text>
-                    に同意したものとみなされます。
-                </Text>
-
-                {/* Signup button */}
+                {/* Update button */}
                 <TouchableOpacity
                     activeOpacity={0.8}
-                    onPress={handleSignup}
+                    onPress={handleUpdate}
                     disabled={isLoading}
-                    style={styles.signupButtonWrapper}
+                    style={styles.updateButtonWrapper}
                 >
                     <LinearGradient
                         colors={isLoading ? [Colors.card, Colors.card] : [Colors.primary, Colors.secondary]}
-                        style={styles.signupButton}
+                        style={styles.updateButton}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                     >
                         {isLoading ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.signupButtonText}>アカウントを作成</Text>
+                            <Text style={styles.updateButtonText}>パスワードを更新</Text>
                         )}
                     </LinearGradient>
                 </TouchableOpacity>
-
-                {/* Divider */}
-                <View style={styles.divider}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>または</Text>
-                    <View style={styles.dividerLine} />
-                </View>
-
-                {/* Social signup buttons */}
-                <TouchableOpacity
-                    style={styles.socialButton}
-                    activeOpacity={0.7}
-                    onPress={handleAppleSignup}
-                    disabled={isLoading}
-                >
-                    <Ionicons name="logo-apple" size={22} color={Colors.text} />
-                    <Text style={styles.socialButtonText}>Appleで続ける</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.socialButton}
-                    activeOpacity={0.7}
-                    onPress={handleGoogleSignup}
-                    disabled={isLoading}
-                >
-                    <Ionicons name="logo-google" size={20} color={Colors.text} />
-                    <Text style={styles.socialButtonText}>Googleで続ける</Text>
-                </TouchableOpacity>
-
-                {/* Login link */}
-                <View style={styles.loginRow}>
-                    <Text style={styles.loginText}>すでにアカウントをお持ちの方は</Text>
-                    <TouchableOpacity onPress={() => router.replace('/login')}>
-                        <Text style={styles.loginLink}>ログイン</Text>
-                    </TouchableOpacity>
-                </View>
             </ScrollView>
         </KeyboardAvoidingView>
     );
@@ -445,31 +320,31 @@ const styles = StyleSheet.create({
         paddingTop: 60,
         paddingBottom: 40,
     },
-    backButton: {
-        marginTop: 56,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: Colors.surface,
+    header: {
+        alignItems: 'center',
+        marginTop: Spacing.xxl,
+        marginBottom: Spacing.xl,
+        gap: Spacing.md,
+    },
+    lockIcon: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: Colors.primary + '15',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: Colors.surfaceBorder,
-    },
-    header: {
-        marginTop: Spacing.lg,
-        marginBottom: Spacing.xl,
-        gap: Spacing.sm,
+        borderColor: Colors.primary + '30',
     },
     title: {
-        fontSize: FontSize.xxxl,
+        fontSize: FontSize.xxl,
         fontWeight: '900',
         color: Colors.text,
-        letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: FontSize.md,
         color: Colors.textSecondary,
+        textAlign: 'center',
         lineHeight: 24,
     },
     inputGroup: {
@@ -534,80 +409,23 @@ const styles = StyleSheet.create({
         marginTop: 10,
         gap: 4,
     },
-    termsText: {
-        fontSize: FontSize.xs,
-        color: Colors.textTertiary,
-        lineHeight: 20,
-        marginBottom: Spacing.lg,
-    },
-    termsLink: {
-        color: Colors.primary,
-        fontWeight: '600',
-    },
-    signupButtonWrapper: {
+    updateButtonWrapper: {
         borderRadius: BorderRadius.xl,
         overflow: 'hidden',
+        marginTop: Spacing.lg,
     },
-    signupButton: {
+    updateButton: {
         paddingVertical: 16,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: BorderRadius.xl,
     },
-    signupButtonText: {
+    updateButtonText: {
         fontSize: FontSize.lg,
         fontWeight: '800',
         color: '#fff',
     },
-    divider: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginVertical: Spacing.xl,
-        gap: Spacing.md,
-    },
-    dividerLine: {
-        flex: 1,
-        height: 1,
-        backgroundColor: Colors.surfaceBorder,
-    },
-    dividerText: {
-        fontSize: FontSize.sm,
-        color: Colors.textTertiary,
-    },
-    socialButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: Spacing.md,
-        backgroundColor: Colors.surface,
-        borderRadius: BorderRadius.xl,
-        paddingVertical: 14,
-        borderWidth: 1,
-        borderColor: Colors.surfaceBorder,
-        marginBottom: Spacing.md,
-    },
-    socialButtonText: {
-        fontSize: FontSize.md,
-        fontWeight: '600',
-        color: Colors.text,
-    },
-    loginRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: Spacing.lg,
-    },
-    loginText: {
-        fontSize: FontSize.sm,
-        color: Colors.textSecondary,
-    },
-    loginLink: {
-        fontSize: FontSize.sm,
-        fontWeight: '700',
-        color: Colors.primary,
-    },
-    // Success screen
+    // Success
     successContainer: {
         flex: 1,
         alignItems: 'center',
@@ -637,23 +455,18 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 26,
     },
-    successNote: {
-        fontSize: FontSize.xs,
-        color: Colors.textTertiary,
-        textAlign: 'center',
-    },
-    backToLoginButton: {
+    successButton: {
         marginTop: Spacing.md,
         borderRadius: BorderRadius.xl,
         overflow: 'hidden',
         width: '100%',
     },
-    backToLoginGradient: {
+    successButtonGradient: {
         paddingVertical: 16,
         alignItems: 'center',
         borderRadius: BorderRadius.xl,
     },
-    backToLoginText: {
+    successButtonText: {
         fontSize: FontSize.lg,
         fontWeight: '800',
         color: '#fff',

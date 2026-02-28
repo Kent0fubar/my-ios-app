@@ -54,11 +54,16 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.full,
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.05)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     genreLabel: {
         fontSize: FontSize.xs,
         fontWeight: '700',
         letterSpacing: 0.1,
+        textAlign: 'center',
+        includeFontPadding: false,
+        textAlignVertical: 'center',
     },
 });
 

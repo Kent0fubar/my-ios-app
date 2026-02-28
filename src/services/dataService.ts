@@ -498,7 +498,7 @@ export const matchService = {
             .limit(1);
 
         if (block && block.length > 0) {
-            console.warn('[matchService] Block exists between these users. Match creation/retrieval denied.');
+            log.warn('[matchService] Block exists between these users. Match creation/retrieval denied.');
             return null;
         }
 
@@ -534,11 +534,11 @@ export const matchService = {
                 .in('direction', ['like', 'superlike']);
 
             if (likesError) {
-                console.error('[matchService.getLikesYou] Database Error:', likesError);
+                log.error('[matchService.getLikesYou] Database Error', likesError);
                 throw likesError;
             }
 
-            console.log(`[matchService.getLikesYou] Raw Likes from DB:`, likes?.length || 0);
+            log.info(`[matchService.getLikesYou] Raw Likes from DB: ${likes?.length || 0}`);
 
             if (!likes || likes.length === 0) {
                 return [];
@@ -567,10 +567,10 @@ export const matchService = {
                 .map(l => l.profiles)
                 .filter(p => p && !matchedUserIds.has(p.id) && !blockedUserIds.has(p.id));
 
-            console.log(`[matchService.getLikesYou] Final Profiles after filtering:`, profiles.length);
+            log.info(`[matchService.getLikesYou] Final Profiles after filtering: ${profiles.length}`);
             return profiles;
         } catch (err) {
-            console.error('[matchService.getLikesYou] Unexpected Error:', err);
+            log.error('[matchService.getLikesYou] Unexpected Error', err);
             return [];
         }
     },
@@ -730,19 +730,14 @@ export const reportService = {
                 description: description || null,
             };
 
-            console.log('[reportService] Submitting report...', reportData);
+            log.info('[reportService] Submitting report...', reportData);
 
             const { error: insertError } = await supabase
                 .from('reports')
                 .insert(reportData);
 
             if (insertError) {
-                console.error('[reportService] Insert Error details:', {
-                    message: insertError.message,
-                    details: insertError.details,
-                    hint: insertError.hint,
-                    code: insertError.code
-                });
+                log.error('[reportService] Insert failed', insertError, reportData);
                 throw insertError;
             }
 
@@ -762,13 +757,15 @@ export const moderationService = {
         validateUUID(blockerId, 'ブロック実行者ID');
         validateUUID(blockedId, 'ブロック対象ID');
 
-        // 1. ブロック情報を登録
         try {
-            await supabase
+            const { error: blockError } = await supabase
                 .from('blocks')
                 .insert({ blocker_id: blockerId, blocked_id: blockedId });
-        } catch (e) {
-            console.warn('[Moderation] Blocks table might not exist');
+            if (blockError) {
+                log.warn('[moderationService] Block insert failed (table may not exist)', blockError);
+            }
+        } catch (e: any) {
+            log.warn('[moderationService] Block insert exception', e);
         }
 
         // 2. マッチを解除

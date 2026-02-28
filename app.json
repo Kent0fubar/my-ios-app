@@ -2,6 +2,7 @@
   "expo": {
     "name": "BandLink",
     "slug": "bandlink",
+    "scheme": "bandlink",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bandlink.app.dev",
+      "bundleIdentifier": "com.bandlink.app",
       "infoPlist": {
         "NSCameraUsageDescription": "プロフィール写真の撮影に使用します",
         "NSPhotoLibraryUsageDescription": "プロフィール写真の選択に使用します",

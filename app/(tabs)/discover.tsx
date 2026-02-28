@@ -254,26 +254,27 @@ const SwipeCard = forwardRef(({
                     )}
 
                     <View style={[styles.cardContent]}>
+                        {/* 1行目: 名前・年齢・認証マーク */}
                         <View style={styles.nameRow}>
-                            <Text style={styles.userName}>{user.name}</Text>
+                            <Text style={styles.userName} numberOfLines={1}>{user.name}</Text>
                             {user.age && (
                                 <Text style={styles.userAge}>{user.age}</Text>
                             )}
                             {user.is_verified && (
                                 <Ionicons name="checkmark-circle" size={20} color={Colors.accent} />
                             )}
+                        </View>
+
+                        {/* 2行目: 位置情報 + スキルレベル */}
+                        <View style={styles.metaRow}>
                             {(user.location || user.distance !== undefined) && (
                                 <View style={styles.locationContainer}>
-                                    <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
-                                    <Text style={styles.locationText}>
+                                    <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
+                                    <Text style={styles.locationText} numberOfLines={1}>
                                         {`${user.location || '不明'}${user.distance !== undefined ? ` • ${user.distance.toFixed(1)}km` : ''}`}
                                     </Text>
                                 </View>
                             )}
-                        </View>
-
-                        <View style={styles.infoRow}>
-
                             {user.skill_level && (
                                 <Badge
                                     label={SKILL_LEVELS.find(s => s.id === user.skill_level)?.label || user.skill_level.toUpperCase()}
@@ -283,8 +284,9 @@ const SwipeCard = forwardRef(({
                             )}
                         </View>
 
+                        {/* 3行目: 楽器タグ + ジャンルタグ（1行にまとめる） */}
                         <View style={styles.tagRow}>
-                            {user.instruments?.slice(0, 3).map((instIdOrLabel) => {
+                            {user.instruments?.slice(0, 2).map((instIdOrLabel) => {
                                 const instData = INSTRUMENTS.find(i => i.id === instIdOrLabel || i.label === instIdOrLabel);
                                 return (
                                     <InstrumentTag
@@ -295,10 +297,7 @@ const SwipeCard = forwardRef(({
                                     />
                                 );
                             })}
-                        </View>
-
-                        <View style={styles.tagRow}>
-                            {user.genres?.slice(0, 4).map((genreIdOrLabel) => {
+                            {user.genres?.slice(0, 3).map((genreIdOrLabel) => {
                                 const genreData = GENRES.find(g => g.id === genreIdOrLabel || g.label === genreIdOrLabel);
                                 return (
                                     <GenreTag
@@ -311,9 +310,12 @@ const SwipeCard = forwardRef(({
                             })}
                         </View>
 
-                        <Text style={styles.bio} numberOfLines={2}>
-                            {user.bio || '自己紹介はありません'}
-                        </Text>
+                        {/* 4行目: bio（あれば） */}
+                        {user.bio ? (
+                            <Text style={styles.bio} numberOfLines={2}>
+                                {user.bio}
+                            </Text>
+                        ) : null}
                     </View>
                 </View>
             </Animated.View>
@@ -363,6 +365,7 @@ export default function DiscoverScreen() {
     const [discoverUsers, setDiscoverUsers] = useState<(Profile & { matchScore?: number; distance?: number })[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [matchData, setMatchData] = useState<{ matchId: string; opponent: Profile } | null>(null);
     const [isLocationModalVisible, setLocationModalVisible] = useState(false);
     const [pendingLocationData, setPendingLocationData] = useState<LocationData | null>(null);
@@ -457,13 +460,12 @@ export default function DiscoverScreen() {
     const fetchUsers = useCallback(async (isInitial = false) => {
         if (!currentUser) return;
         setIsLoading(true);
+        setFetchError(null);
         try {
             // 初回読み込み時かつ未チェックの場合に位置情報を確認
             if (isInitial && !hasCheckedLocation.current && myProfile) {
                 checkLocationMismatch().then(success => {
-                    if (success) {
-                        hasCheckedLocation.current = true;
-                    }
+                    if (success) hasCheckedLocation.current = true;
                 });
             }
 
@@ -481,8 +483,9 @@ export default function DiscoverScreen() {
             });
             setDiscoverUsers(users);
             setCurrentIndex(0);
-        } catch (error) {
-            console.error('[Discover] Fetch users error:', error);
+        } catch (error: any) {
+            log.error('[Discover] Fetch users error', error);
+            setFetchError('ユーザー情報の取得に失敗しました。通信状態を確認してください。');
         } finally {
             setIsLoading(false);
         }
@@ -505,8 +508,8 @@ export default function DiscoverScreen() {
                 const stored = await AsyncStorage.getItem(key);
                 setSwipeCount(stored ? parseInt(stored) : 0);
             }
-        } catch (e) {
-            console.error('[Discover] Failed to check sub/swipe count', e);
+        } catch (e: any) {
+            log.error('[Discover] Failed to check subscription/swipe count', e);
         }
     }, [currentUser]);
 
@@ -662,6 +665,15 @@ export default function DiscoverScreen() {
                         <ActivityIndicator size="large" color={Colors.primary} />
                         <Text style={styles.loadingText}>ミュージシャンを探しています...</Text>
                     </View>
+                ) : fetchError ? (
+                    <EmptyState
+                        emoji="⚠️"
+                        title="読み込みに失敗しました"
+                        description={fetchError}
+                        onButtonPress={() => fetchUsers()}
+                        buttonText="再試行"
+                        buttonIcon="refresh"
+                    />
                 ) : remainingUsers.length > 0 ? (
                     remainingUsers
                         .slice(0, 3)
@@ -1132,15 +1144,21 @@ const styles = StyleSheet.create({
     },
     // --- Card Content & Badges ---
     cardContent: {
-        padding: Spacing.md,
+        paddingVertical: Spacing.sm,
         paddingHorizontal: Spacing.lg,
-        gap: 8,
-        backgroundColor: Colors.card, // 上のグラデーションの終点カラーと完全に一致させる
+        gap: 6,
+        backgroundColor: Colors.card,
     },
     nameRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.sm,
+    },
+    metaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        flexWrap: 'wrap',
     },
     userName: {
         fontSize: FontSize.xxl,

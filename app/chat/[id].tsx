@@ -18,6 +18,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius } from '../../src/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { messageService, matchService, profileService, reportService, moderationService } from '../../src/services/dataService';
+import { log } from '../../src/lib/logger';
 
 interface Message {
     id: string;
@@ -106,7 +107,7 @@ export default function ChatScreen() {
                     }
                 });
             } catch (error: any) {
-                console.error('[Chat] Init error:', error.message || error);
+                log.error('[Chat] Init error', error);
             } finally {
                 setIsLoading(false);
             }
@@ -136,22 +137,27 @@ export default function ChatScreen() {
         const textToSend = inputText.trim();
         setInputText('');
 
-        // Supabaseへ保存
-        const savedMsg = await messageService.sendMessage(matchId, currentUser.id, textToSend);
+        try {
+            const savedMsg = await messageService.sendMessage(matchId, currentUser.id, textToSend);
 
-        if (savedMsg) {
-            // UI更新
-            setMessages((prev) => [...prev, {
-                id: savedMsg.id,
-                text: savedMsg.content || '',
-                sender: 'me',
-                timestamp: new Date(savedMsg.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-                isRead: false,
-            }]);
+            if (savedMsg) {
+                setMessages((prev) => [...prev, {
+                    id: savedMsg.id,
+                    text: savedMsg.content || '',
+                    sender: 'me',
+                    timestamp: new Date(savedMsg.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+                    isRead: false,
+                }]);
 
-            setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+                setTimeout(() => {
+                    flatListRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+            }
+        } catch (error: any) {
+            log.error('[Chat] sendMessage failed', error);
+            // 入力内容を復元して再送信できるようにする
+            setInputText(textToSend);
+            Alert.alert('送信失敗', 'メッセージの送信に失敗しました。もう一度お試しください。');
         }
     };
 

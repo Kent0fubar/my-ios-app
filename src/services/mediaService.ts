@@ -6,6 +6,7 @@ import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { withRateLimit } from '../lib/rateLimit';
+import { log } from '../lib/logger';
 
 export interface MediaUploadResult {
     url: string;
@@ -83,11 +84,15 @@ export const mediaService = {
             const { data } = supabase.storage.from('avatars').getPublicUrl(path);
 
             // プロフィールのavatar_urlを更新
-            const updates: any = { avatar_url: data.publicUrl };
-            await supabase
+            const { error: updateError } = await supabase
                 .from('profiles')
-                .update(updates)
+                .update({ avatar_url: data.publicUrl } as any)
                 .eq('id', userId);
+
+            if (updateError) {
+                log.error('[MediaService] Failed to update avatar_url in profile', updateError);
+                // アップロード自体は成功しているので続行（URLは返す）
+            }
 
             return { url: data.publicUrl, path };
         });
@@ -117,12 +122,12 @@ export const mediaService = {
         );
 
         this._recording = recording;
-        console.log('[Media] Recording started');
+        log.info('[MediaService] Recording started');
 
         // 60秒後に自動停止
         setTimeout(async () => {
             if (this._recording) {
-                console.log('[Media] Auto-stopping recording after 60s');
+                log.info('[MediaService] Auto-stopping recording after 60s');
                 await this.stopRecording();
             }
         }, 60 * 1000);
@@ -142,10 +147,10 @@ export const mediaService = {
 
             const uri = this._recording.getURI();
             this._recording = null;
-            console.log('[Media] Recording stopped:', uri);
+            log.info('[MediaService] Recording stopped', uri);
             return uri;
-        } catch (e) {
-            console.error('[Media] Stop recording error:', e);
+        } catch (e: any) {
+            log.error('[MediaService] Stop recording error', e);
             this._recording = null;
             return null;
         }
@@ -180,11 +185,14 @@ export const mediaService = {
             const { data } = supabase.storage.from('audio_clips').getPublicUrl(path);
 
             // プロフィールのaudio_clip_urlを更新
-            const updates: any = { audio_clip_url: data.publicUrl };
-            await supabase
+            const { error: updateError } = await supabase
                 .from('profiles')
-                .update(updates)
+                .update({ audio_clip_url: data.publicUrl } as any)
                 .eq('id', userId);
+
+            if (updateError) {
+                log.error('[MediaService] Failed to update audio_clip_url in profile', updateError);
+            }
 
             return { url: data.publicUrl, path };
         });
