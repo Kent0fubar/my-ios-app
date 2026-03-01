@@ -23,10 +23,5 @@
     TO authenticated 
     USING (auth.uid() = reporter_id);
 
-    -- 凍結カウント用の権限（匿名カウントを許可するか、サービスロールで行うか）
-    -- フロントエンドからカウントする場合はSELECT権限が必要。
-    -- 悪用防止のため、reported_idを条件としたSELECTを許可する
-    CREATE POLICY "Authenticated users can see report counts" 
-    ON reports FOR SELECT 
-    TO authenticated 
-    USING (TRUE);
+    -- (削除済み) 匿名での集計が必要な場合は、セキュリティを考慮した別の方法（Edge Function等）を検討してください
+

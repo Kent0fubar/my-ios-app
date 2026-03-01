@@ -15,8 +15,8 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     }
 }
 
-const supabaseUrlStr = SUPABASE_URL || 'https://zgwsacshtooqthlsnplw.supabase.co';
-const supabaseAnonStr = SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpnd3NhY3NodG9vcXRobHNucGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1MDcxNzUsImV4cCI6MjA4NzA4MzE3NX0.H9x5ISv-pP-zyBqS9WDLLfr0OwhgIdEaGirTNHP6GV0';
+const supabaseUrlStr = SUPABASE_URL || '';
+const supabaseAnonStr = SUPABASE_ANON_KEY || '';
 
 // 型定義の不整合によるビルドエラーを回避するため一時的にanyを使用
 export const supabase = createClient<any>(supabaseUrlStr, supabaseAnonStr, {
