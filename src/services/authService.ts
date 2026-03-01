@@ -26,6 +26,11 @@ export interface SignInData {
     password: string;
 }
 
+// OTP方式のパスワードリセット中フラグ
+// verifyOtp({ type: 'recovery' }) が PASSWORD_RECOVERY イベントを発火させるため、
+// AuthContext で不正な画面遷移を防ぐために使用
+export let isOtpPasswordResetInProgress = false;
+
 export const authService = {
     /**
      * メール/パスワードで新規登録
@@ -155,21 +160,37 @@ export const authService = {
      * OTPを検証してパスワードを更新
      */
     async verifyOtpAndUpdatePassword(email: string, token: string, newPassword: string) {
-        // OTP を検証してセッションを確立
-        const { data, error: verifyError } = await supabase.auth.verifyOtp({
-            email,
-            token,
-            type: 'recovery',
-        });
-        if (verifyError) throw verifyError;
+        // OTPリセット中フラグをセット
+        isOtpPasswordResetInProgress = true;
 
-        // セッションが確立されたらパスワードを更新
-        const { error: updateError } = await supabase.auth.updateUser({
-            password: newPassword,
-        });
-        if (updateError) throw updateError;
+        try {
+            // OTP を検証してセッションを確立
+            const { data, error: verifyError } = await supabase.auth.verifyOtp({
+                email,
+                token,
+                type: 'recovery',
+            });
+            if (verifyError) throw verifyError;
 
-        return data;
+            // セッションが確立されたらパスワードを更新
+            const { error: updateError } = await supabase.auth.updateUser({
+                password: newPassword,
+            });
+            if (updateError) throw updateError;
+
+            // パスワード更新成功後、リカバリーセッションをクリーンアップ
+            // verifyOtp({ type: 'recovery' }) が作成するセッションは
+            // PASSWORD_RECOVERY イベントを発火させ、AuthContext のルーティングと競合するため、
+            // サインアウトしてユーザーに新しいパスワードで再ログインしてもらう
+            await supabase.auth.signOut();
+
+            return data;
+        } finally {
+            // フラグをリセット（少し遅延させて、全イベントが処理された後にリセット）
+            setTimeout(() => {
+                isOtpPasswordResetInProgress = false;
+            }, 1000);
+        }
     },
 
     /**

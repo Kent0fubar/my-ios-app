@@ -182,8 +182,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(newSession?.user ?? null);
 
                 if (event === 'PASSWORD_RECOVERY') {
-                    // パスワードリセットリンクからアプリに戻った場合
-                    // 新しいパスワード設定画面に遷移
+                    // OTP方式のリセットフロー中はこのイベントを無視
+                    // （reset-password画面内で完結するため、update-passwordに飛ばす必要がない）
+                    const { isOtpPasswordResetInProgress } = require('../services/authService');
+                    if (isOtpPasswordResetInProgress) {
+                        if (__DEV__) console.log('[Auth] PASSWORD_RECOVERY event ignored (OTP reset in progress)');
+                        return;
+                    }
+                    // ディープリンク経由のリセットフローの場合のみ遷移
                     router.replace('/update-password');
                     return;
                 }
